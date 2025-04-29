@@ -50,7 +50,7 @@ class ContactController extends Controller
      */
     public function edit(Contact $contact)
     {
-        $this->authorizeContact($contact);
+        $this->authorizeContact($contact);  // Check if the user owns the contact
 
         // Get categories for the dropdown based on the current user
         $categories = Category::forUser(Auth::id())->get();
@@ -63,7 +63,7 @@ class ContactController extends Controller
      */
     public function update(Request $request, Contact $contact)
     {
-        $this->authorizeContact($contact);
+        $this->authorizeContact($contact);  // Check if the user owns the contact
 
         $request->validate([
             'name' => ['required', 'regex:/^[A-Za-z0-9 ]+$/', 'max:255'],
@@ -86,7 +86,7 @@ class ContactController extends Controller
      */
     public function destroy(Contact $contact)
     {
-        $this->authorizeContact($contact);
+        $this->authorizeContact($contact);  // Check if the user owns the contact
 
         $contact->delete();
 
@@ -121,8 +121,9 @@ class ContactController extends Controller
     /**
      * Authorize the contact to make sure it belongs to the user.
      */
-    private function authorizeContact(Contact $contact)
+    protected function authorizeContact(Contact $contact)
     {
+        // Ensure the contact belongs to the authenticated user
         if ($contact->user_id !== Auth::id()) {
             abort(403, 'Unauthorized action. You do not own this contact.');
         }
@@ -145,6 +146,25 @@ class ContactController extends Controller
         ]);
 
         return redirect()->route('dashboard')->with('success', 'Category added successfully!');
+    }
+
+    /**
+     * Delete a category after user confirmation.
+     */
+    public function destroyCategory($id)
+    {
+        $category = Category::where('id', $id)->where('user_id', Auth::id())->firstOrFail();
+
+        // Prevent deletion if the category has contacts
+        if ($category->contacts()->exists()) {
+            return redirect()->route('categories.index')
+                             ->with('error', 'Cannot delete a category that has associated contacts.');
+        }
+
+        $category->delete();
+
+        return redirect()->route('categories.index')
+                         ->with('success', 'Category deleted successfully.');
     }
 
     /**
@@ -196,7 +216,7 @@ class ContactController extends Controller
      */
     public function show(Contact $contact)
     {
-        $this->authorizeContact($contact);
+        $this->authorizeContact($contact);  // Check if the user owns the contact
 
         return view('contacts.show', compact('contact'));
     }
