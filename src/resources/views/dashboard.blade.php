@@ -1,12 +1,14 @@
-<!-- filepath: c:\SIRKIM\ContactDaw\src\resources\views\dashboard.blade.php -->
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard - Contact Manager</title>
+    <title>{{ config('app.name') }} - Dashboard</title>
+
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+
     <style>
-        /* General styles */
         body {
             font-family: Arial, sans-serif;
             margin: 0;
@@ -99,7 +101,8 @@
             background: #f1f1f1;
         }
 
-        .add-contact-btn {
+        .add-contact-btn,
+        .add-category-btn {
             display: inline-block;
             margin-top: 20px;
             padding: 10px 20px;
@@ -114,7 +117,8 @@
             transition: background 0.3s ease, transform 0.3s ease;
         }
 
-        .add-contact-btn:hover {
+        .add-contact-btn:hover,
+        .add-category-btn:hover {
             background: #218838;
             transform: scale(1.05);
         }
@@ -139,7 +143,6 @@
             transform: scale(1.05);
         }
 
-        /* Animations */
         @keyframes fadeIn {
             from {
                 opacity: 0;
@@ -154,9 +157,8 @@
 </head>
 <body>
     <div class="dashboard-container">
-        <h2>Welcome, {{ Auth::user()->name }}</h2>
+        <h2>{{ __('Welcome, :name', ['name' => Auth::user()->name]) }}</h2>
 
-        <!-- Flash Message -->
         @if (session('success'))
             <div class="flash-message">
                 {{ session('success') }}
@@ -165,18 +167,28 @@
 
         <!-- Search Bar -->
         <form method="GET" action="{{ route('contacts.index') }}" class="search-bar">
-            <input type="text" name="search" placeholder="Search contacts..." value="{{ request('search') }}">
-            <button type="submit">Search</button>
+            <input type="text" name="search" placeholder="{{ __('Search contacts...') }}" value="{{ request('search') }}">
+            <select name="category_id" class="form-select" style="width: 200px;">
+                <option value="" disabled selected>{{ __('Select Category') }}</option>
+                @foreach ($categories as $category)
+                    <option value="{{ $category->id }}" 
+                            {{ request('category_id') == $category->id ? 'selected' : '' }}>
+                        {{ $category->name }}
+                    </option>
+                @endforeach
+            </select>
+            <button type="submit">{{ __('Search') }}</button>
         </form>
 
         <!-- Contacts Table -->
         <table class="contacts-table">
             <thead>
                 <tr>
-                    <th>Name</th>
-                    <th>Email</th>
-                    <th>Phone</th>
-                    <th>Actions</th>
+                    <th>{{ __('Name') }}</th>
+                    <th>{{ __('Email') }}</th>
+                    <th>{{ __('Phone') }}</th>
+                    <th>{{ __('Category') }}</th>
+                    <th>{{ __('Actions') }}</th>
                 </tr>
             </thead>
             <tbody>
@@ -185,31 +197,142 @@
                     <td>{{ $contact->name }}</td>
                     <td>{{ $contact->email }}</td>
                     <td>{{ $contact->phone }}</td>
+                    <td>{{ $contact->category ? $contact->category->name : 'No Category' }}</td>
                     <td>
-                        <a href="{{ route('contacts.edit', $contact->id) }}" class="edit-btn">Edit</a>
+                        <a href="{{ route('contacts.edit', $contact->id) }}" class="edit-btn">{{ __('Edit') }}</a>
                         <form action="{{ route('contacts.destroy', $contact->id) }}" method="POST" style="display: inline;">
                             @csrf
                             @method('DELETE')
-                            <button type="submit" class="delete-btn">Delete</button>
+                            <button type="submit" class="delete-btn">{{ __('Delete') }}</button>
                         </form>
                     </td>
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="4" style="text-align: center;">No contacts found.</td>
+                    <td colspan="5" style="text-align: center;">{{ __('No contacts found.') }}</td>
                 </tr>
                 @endforelse
             </tbody>
         </table>
 
         <!-- Add Contact Button -->
-        <a href="{{ route('contacts.create') }}" class="add-contact-btn">+ Add Contact</a>
+        <button type="button" class="add-contact-btn" data-bs-toggle="modal" data-bs-target="#addContactModal">
+            + Add Contact
+        </button>
+
+        <!-- Add Category Button -->
+        <button type="button" class="add-category-btn" data-bs-toggle="modal" data-bs-target="#addCategoryModal">
+            + Add Category
+        </button>
 
         <!-- Logout Button -->
         <form method="POST" action="{{ route('logout') }}" style="display: inline;">
             @csrf
-            <button type="submit" class="logout-btn">Logout</button>
+            <button type="submit" class="logout-btn">{{ __('Logout') }}</button>
         </form>
     </div>
+
+    <!-- Add Category Modal -->
+    <div class="modal fade" id="addCategoryModal" tabindex="-1" aria-labelledby="addCategoryModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <form method="POST" action="{{ route('categories.store') }}">
+                @csrf
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="addCategoryModalLabel">Add New Category</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label for="category-name" class="form-label">Category Name</label>
+                            <input type="text" class="form-control @error('name') is-invalid @enderror" 
+                                   id="category-name" name="name" value="{{ old('name') }}" required>
+                            @error('name')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="category-type" class="form-label">Category Type</label>
+                            <select name="type" id="category-type" 
+                                    class="form-select @error('type') is-invalid @enderror" required>
+                                <option value="" disabled selected>Select Type</option>
+                                <option value="business" {{ old('type') === 'business' ? 'selected' : '' }}>Business</option>
+                                <option value="personal" {{ old('type') === 'personal' ? 'selected' : '' }}>Personal</option>
+                            </select>
+                            @error('type')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="submit" class="btn btn-primary">Save Category</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Contact Modal -->
+    <div class="modal fade" id="addContactModal" tabindex="-1" aria-labelledby="addContactModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <form method="POST" action="{{ route('contacts.store') }}">
+                @csrf
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="addContactModalLabel">Add New Contact</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+
+                        <div class="mb-3">
+                            <label for="contact-name" class="form-label">Name</label>
+                            <input type="text" class="form-control @error('name') is-invalid @enderror" 
+                                   id="contact-name" name="name" value="{{ old('name') }}" required>
+                            @error('name')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="contact-email" class="form-label">Email</label>
+                            <input type="email" class="form-control @error('email') is-invalid @enderror" 
+                                   id="contact-email" name="email" value="{{ old('email') }}" required>
+                            @error('email')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="contact-phone" class="form-label">Phone</label>
+                            <input type="text" class="form-control @error('phone') is-invalid @enderror" 
+                                   id="contact-phone" name="phone" value="{{ old('phone') }}" required>
+                            @error('phone')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+
+                        <!-- Category Dropdown -->
+                        <div class="mb-3">
+                            <label for="contact-category" class="form-label">Category</label>
+                            <select name="category_id" id="contact-category" class="form-select">
+                                <option value="" disabled selected>Select Category</option>
+                                @foreach ($categories as $category)
+                                    <option value="{{ $category->id }}">{{ $category->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+
+                    </div>
+                    <div class="modal-footer">
+                        <button type="submit" class="btn btn-primary">Save Contact</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

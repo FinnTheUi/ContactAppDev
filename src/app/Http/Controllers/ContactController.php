@@ -3,15 +3,17 @@
 namespace App\Http\Controllers;
 
 use App\Models\Contact;
+use App\Models\Category;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+
 use Illuminate\Routing\Controller;
 
 class ContactController extends Controller
 {
     public function __construct()
     {
-        $this->middleware('auth'); // Ensure all actions require login
+        $this->middleware('auth');
     }
 
     /**
@@ -20,97 +22,67 @@ class ContactController extends Controller
     public function index(Request $request)
     {
         $search = $request->input('search');
+        $categoryFilter = $request->input('category_id');
 
+        // Get categories for the dropdown based on the current user
+        $categories = Category::forUser(Auth::id())->get();
+
+        // Fetch contacts, with optional search and category filter
         $contacts = Contact::query()
-            ->where('user_id', Auth::id()) // Filter only current user's contacts
+            ->where('user_id', Auth::id())
             ->when($search, function ($query, $search) {
                 $query->where('name', 'like', "%{$search}%")
                       ->orWhere('email', 'like', "%{$search}%")
                       ->orWhere('phone', 'like', "%{$search}%");
             })
+            ->when($categoryFilter, function ($query, $categoryFilter) {
+                $query->where('category_id', $categoryFilter);
+            })
+            ->orderBy('name')
             ->get();
 
-        return view('contacts.index', compact('contacts'));
+        // Return the view with the contacts and categories
+        return view('contacts.index', compact('contacts', 'categories'));
     }
 
     /**
-     * Show the form for creating a new contact.
-     */
-    public function create()
-    {
-        return view('contacts.create');
-    }
-
-    /**
-     * Store a newly created contact in storage.
-     */
-    public function store(Request $request)
-    {
-        $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|email',
-            'phone' => 'required|string|max:20',
-        ]);
-
-        Contact::create([
-            'name' => $request->name,
-            'email' => $request->email,
-            'phone' => $request->phone,
-            'user_id' => Auth::id(), // Associate contact with the logged-in user
-        ]);
-
-        return redirect()->route('contacts.index')->with('success', 'Contact created successfully.');
-    }
-
-    /**
-     * Display the specified contact.
-     */
-    public function show(Contact $contact)
-    {
-        $this->authorizeContact($contact);
-
-        return view('contacts.show', compact('contact'));
-    }
-
-    /**
-     * Show the form for editing the specified contact.
+     * Show the form for editing a contact.
      */
     public function edit(Contact $contact)
     {
-        // Ensure the user is authorized to edit this contact
-        $this->authorizeContact($contact);
-    
-        // Return the edit view with the contact data
-        return view('contacts.edit', compact('contact'));
         $this->authorizeContact($contact);
 
-        return view('contacts.edit', compact('contact'));
+        // Get categories for the dropdown based on the current user
+        $categories = Category::forUser(Auth::id())->get();
+
+        return view('contacts.edit', compact('contact', 'categories'));
     }
 
     /**
-     * Update the specified contact in storage.
+     * Update an existing contact.
      */
     public function update(Request $request, Contact $contact)
     {
-         // Ensure the user is authorized to update this contact
-    $this->authorizeContact($contact);
+        $this->authorizeContact($contact);
 
-    // Validate the form input
-    $request->validate([
-        'name' => 'required|string|max:255',
-        'email' => 'required|email',
-        'phone' => 'required|string|max:20',
-    ]);
+        $request->validate([
+            'name' => ['required', 'regex:/^[A-Za-z0-9 ]+$/', 'max:255'],
+            'email' => ['required', 'regex:/^[A-Za-z0-9]{1,15}@gmail\.com$/'],
+            'phone' => ['required', 'regex:/^\+63\d{8,9}$/'],
+        ]);
 
-    // Update the contact
-    $contact->update($request->all());
+        $contact->update([
+            'name' => $request->name,
+            'email' => $request->email,
+            'phone' => $request->phone,
+            'category_id' => $request->category_id, // Make sure category is updated
+        ]);
 
-    // Redirect back to the dashboard with a success message
-    return redirect()->route('dashboard')->with('success', 'Contact updated successfully.');
+        return redirect()->route('contacts.index')->with('success', 'Contact updated successfully.');
     }
 
     /**
-     * Remove the specified contact from storage.
+     * Delete a contact.
      */
     public function destroy(Contact $contact)
     {
@@ -122,38 +94,7 @@ class ContactController extends Controller
     }
 
     /**
-     * Search for contacts based on a query.
-     */
-    public function search(Request $request)
-    {
-        $search = $request->input('search');
-
-        $contacts = Contact::where('user_id', Auth::id())
-            ->where(function ($query) use ($search) {
-                $query->where('name', 'like', "%{$search}%")
-                      ->orWhere('email', 'like', "%{$search}%")
-                      ->orWhere('phone', 'like', "%{$search}%");
-            })
-            ->get();
-
-        return view('contacts.index', compact('contacts'));
-    }
-
-    /**
-     * Paginate contacts.
-     */
-    public function paginate(Request $request)
-    {
-        $perPage = $request->input('per_page', 10);
-
-        $contacts = Contact::where('user_id', Auth::id())
-            ->paginate($perPage);
-
-        return view('contacts.index', compact('contacts'));
-    }
-
-    /**
-     * Export contacts to a CSV file.
+     * Export contacts to CSV.
      */
     public function export()
     {
@@ -178,12 +119,85 @@ class ContactController extends Controller
     }
 
     /**
-     * Authorize the contact to ensure it belongs to the logged-in user.
+     * Authorize the contact to make sure it belongs to the user.
      */
     private function authorizeContact(Contact $contact)
     {
         if ($contact->user_id !== Auth::id()) {
-            abort(403, 'Unauthorized action.');
+            abort(403, 'Unauthorized action. You do not own this contact.');
         }
+    }
+
+    /**
+     * Store a newly created category.
+     */
+    public function storeCategory(Request $request)
+    {
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'type' => 'required|in:business,personal',
+        ]);
+
+        Category::create([
+            'name' => $request->name,
+            'type' => $request->type,
+            'user_id' => Auth::id(),
+        ]);
+
+        return redirect()->route('dashboard')->with('success', 'Category added successfully!');
+    }
+
+    /**
+     * Display a listing of the categories.
+     */
+    public function indexCategories()
+    {
+        $categories = Category::where('user_id', Auth::id())->get();
+
+        return view('categories.index', compact('categories'));
+    }
+
+    /**
+     * Show the form for creating a new category.
+     */
+    public function createCategory()
+    {
+        return view('categories.create');
+    }
+
+    /**
+     * Store a newly created contact.
+     */
+    public function store(Request $request)
+    {
+        $request->validate([
+            'name' => ['required', 'regex:/^[A-Za-z0-9 ]+$/', 'max:255'],
+            'email' => ['required', 'regex:/^[A-Za-z0-9]{1,15}@gmail\.com$/'],
+            'phone' => ['required', 'regex:/^\+63\d{8,9}$/'],
+        ], [
+            'name.regex' => 'Name must contain only letters and numbers.',
+            'email.regex' => 'Email must contain only letters and numbers (max 15) and end with @gmail.com.',
+            'phone.regex' => 'Phone must start with +63 and be 11 to 12 characters total.',
+        ]);
+
+        Contact::create([
+            'name' => $request->name,
+            'email' => $request->email,
+            'phone' => $request->phone,
+            'user_id' => Auth::id(),
+            'category_id' => $request->category_id, // Add category assignment here
+        ]);
+
+        return redirect()->route('contacts.index')->with('success', 'Contact created successfully.');
+    }
+
+    /**
+     * Show a specific contact.
+     */
+    public function show(Contact $contact)
+    {
+        $this->authorizeContact($contact);
+
+        return view('contacts.show', compact('contact'));
     }
 }

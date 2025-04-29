@@ -5,8 +5,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Contacts</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+
     <style>
-        /* General styles */
         body {
             font-family: Arial, sans-serif;
             margin: 0;
@@ -86,8 +87,6 @@
             background: #28a745;
             border: none;
             border-radius: 5px;
-            text-decoration: none;
-            text-align: center;
             cursor: pointer;
             transition: background 0.3s ease, transform 0.3s ease;
         }
@@ -117,7 +116,6 @@
             transform: scale(1.05);
         }
 
-        /* Animations */
         @keyframes fadeIn {
             from {
                 opacity: 0;
@@ -133,7 +131,11 @@
 <body>
     <div class="contacts-container">
         <h2>Contacts</h2>
-        <a href="{{ route('contacts.create') }}" class="add-contact-btn">+ Add New Contact</a>
+
+        <!-- Trigger Modal -->
+        <button class="add-contact-btn" data-bs-toggle="modal" data-bs-target="#addContactModal">
+            + Add New Contact
+        </button>
 
         <ul class="contacts-list">
             @foreach ($contacts as $contact)
@@ -156,5 +158,53 @@
 
         <a href="/dashboard" class="back-btn">← Back to Dashboard</a>
     </div>
+
+    <!-- Add Contact Modal -->
+    <div class="modal fade" id="addContactModal" tabindex="-1" aria-labelledby="addContactModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <form method="POST" action="{{ route('contacts.store') }}">
+                @csrf
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="addContactModalLabel">Add New Contact</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label for="contact-name" class="form-label">Name</label>
+                            <input type="text" class="form-control @error('name') is-invalid @enderror" 
+                                   id="contact-name" name="name" value="{{ old('name') }}" required>
+                            @error('name')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="contact-email" class="form-label">Email</label>
+                            <input type="email" class="form-control @error('email') is-invalid @enderror" 
+                                   id="contact-email" name="email" value="{{ old('email') }}" required>
+                            @error('email')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="contact-phone" class="form-label">Phone</label>
+                            <input type="text" class="form-control @error('phone') is-invalid @enderror" 
+                                   id="contact-phone" name="phone" value="{{ old('phone') }}" required>
+                            @error('phone')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="submit" class="btn btn-primary">Save Contact</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

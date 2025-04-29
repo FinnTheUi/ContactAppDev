@@ -13,11 +13,16 @@ return new class extends Migration
     {
         Schema::create('contacts', function (Blueprint $table) {
             $table->id();
-$table->string('name');
-$table->string('email');
-$table->string('phone');
-$table->timestamps();
+            $table->string('name');
+            $table->string('email');
+            $table->string('phone');
+            $table->unsignedBigInteger('user_id');
+            $table->unsignedBigInteger('category_id')->nullable(); // Nullable in case no category is assigned
+            $table->timestamps();
 
+            // Foreign key constraints
+            $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
+            $table->foreign('category_id')->references('id')->on('categories')->onDelete('set null');
         });
     }
 

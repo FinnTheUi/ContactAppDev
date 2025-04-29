@@ -24,32 +24,31 @@ class AuthController extends Controller
     {
         return view('auth.register');
     }
-
-    /**
-     * Handle user registration.
-     */
+    
     public function register(Request $request)
     {
         // Validate the registration form
         $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|string|email|unique:users',
-            'password' => 'required|string|min:6|confirmed',
-        ]);
+            'name' => 'required|string|max:255|regex:/^[a-zA-Z0-9 ]+$/', // Only letters, numbers, and spaces
+            'email' => 'required|string|unique:users,email|regex:/^[a-zA-Z0-9_]+@gmail\.com$/', // Must end with @gmail.com, only numbers and no special characters
+            'phone' => 'required|regex:/^\d{9}$/', // Must be exactly 9 digits
+            'password' => 'required|string|min:8|confirmed', // Password confirmation required
+            
+        ]); 
+          
 
         // Create the user
-        $user = User::create([
+        User::create([
             'name' => $request->name,
             'email' => $request->email,
-            'password' => Hash::make($request->password),
+            'phone' => '+63' . $request->phone, // Add +63 prefix to the phone number
+            'password' => Hash::make($request->password), // Hash the password
         ]);
 
-        // Log in the user after registration
-        Auth::login($user);
-
-        // Redirect to the dashboard
-        return redirect('/dashboard')->with('success', 'Registration successful. Welcome!');
+        // Redirect to the login page with a success message
+        return redirect()->route('login')->with('success', 'Account created successfully. Please log in.');
     }
+
 
     /**
      * Handle user login.
@@ -58,19 +57,22 @@ class AuthController extends Controller
     {
         // Validate the login form
         $request->validate([
-            'email' => 'required|email',
-            'password' => 'required',
+            'email' => 'required|string',
+            'password' => 'required|string',
         ]);
 
-        // Attempt to log in the user
-        $credentials = $request->only('email', 'password');
+        // Check if the input is an email or username
+        $credentials = filter_var($request->email, FILTER_VALIDATE_EMAIL)
+            ? ['email' => $request->email, 'password' => $request->password]
+            : ['name' => $request->email, 'password' => $request->password];
 
+        // Attempt to log in the user
         if (Auth::attempt($credentials)) {
             // Regenerate session to prevent session fixation attacks
             $request->session()->regenerate();
 
             // Redirect to the dashboard
-            return redirect('/dashboard')->with('success', 'Login successful. Welcome back!');
+            return redirect('/dashboard')->with('success', 'Login successful. Welcome!');
         }
 
         // If login fails, redirect back with an error message
@@ -96,4 +98,4 @@ class AuthController extends Controller
         // Redirect to the login page with a success message
         return redirect('/login')->with('success', 'You have been logged out successfully.');
     }
-}
+};

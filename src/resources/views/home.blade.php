@@ -1,10 +1,9 @@
-<!-- filepath: c:\SIRKIM\ContactDaw\src\resources\views\home.blade.php -->
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ContactDaw</title>
+    <title>{{ config('app.name') }}</title>
     <style>
         /* General styles */
         body {
@@ -90,19 +89,17 @@
 <body>
     <!-- Top-right buttons -->
     <div class="top-right-buttons">
-        <a href="{{ route('login') }}">Login</a>
-        <a href="/register">Register</a>
+        <a href="{{ route('login') }}">{{ __('Login') }}</a>
+        <a href="{{ route('register') }}">{{ __('Register') }}</a>
     </div>
 
     <!-- Welcome message -->
-    <h1>Welcome to ContactDaw</h1>
+    <h1>{{ __('Welcome to :appName', ['appName' => config('app.name')]) }}</h1>
 
     <!-- Info section -->
     <div class="info-section">
         <p>
-            ContactDaw is your ultimate contact management solution. Whether you're an individual or a business, 
-            our platform helps you organize, manage, and access your contacts effortlessly. 
-            With a user-friendly interface and powerful tools, ContactDaw ensures your contact information is always at your fingertips.
+            {{ __(':appName is your ultimate contact management solution. Whether you\'re an individual or a business, our platform helps you organize, manage, and access your contacts effortlessly. With a user-friendly interface and powerful tools, :appName ensures your contact information is always at your fingertips.', ['appName' => config('app.name')]) }}
         </p>
     </div>
 </body>
