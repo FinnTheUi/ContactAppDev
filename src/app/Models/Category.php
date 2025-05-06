@@ -4,12 +4,17 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Builder;
 
 class Category extends Model
 {
     use HasFactory;
 
-    // Allow mass assignment
+    /**
+     * The attributes that are mass assignable.
+     *
+     * @var array<int, string>
+     */
     protected $fillable = [
         'name',
         'type',
@@ -17,7 +22,7 @@ class Category extends Model
     ];
 
     /**
-     * A category belongs to a user.
+     * Get the user that owns the category.
      */
     public function user()
     {
@@ -25,7 +30,7 @@ class Category extends Model
     }
 
     /**
-     * A category can have many contacts.
+     * Get all contacts under this category.
      */
     public function contacts()
     {
@@ -33,18 +38,25 @@ class Category extends Model
     }
 
     /**
-     * Scope to filter categories by user.
+     * Scope a query to only include categories for a given user.
+     *
+     * @param  Builder  $query
+     * @param  int  $userId
+     * @return Builder
      */
-    public function scopeForUser($query, $userId)
+    public function scopeForUser(Builder $query, int $userId): Builder
     {
         return $query->where('user_id', $userId);
     }
 
     /**
-     * Get the category's type in a human-readable format.
+     * Get the category's type with the first letter capitalized.
+     *
+     * @param  string  $value
+     * @return string
      */
-    public function getTypeAttribute($value)
+    public function getTypeAttribute($value): string
     {
-        return ucfirst($value); // Capitalizes the type (e.g., 'business' => 'Business')
+        return ucfirst($value);
     }
 }

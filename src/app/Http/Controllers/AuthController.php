@@ -6,6 +6,9 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
@@ -27,58 +30,82 @@ class AuthController extends Controller
     
     public function register(Request $request)
     {
-        // Validate the registration form
-        $request->validate([
-            'name' => 'required|string|max:255|regex:/^[a-zA-Z0-9 ]+$/', // Only letters, numbers, and spaces
-            'email' => 'required|string|unique:users,email|regex:/^[a-zA-Z0-9_]+@gmail\.com$/', // Must end with @gmail.com, only numbers and no special characters
-            'phone' => 'required|regex:/^\d{9}$/', // Must be exactly 9 digits
-            'password' => 'required|string|min:8|confirmed', // Password confirmation required
+        try {
+            DB::beginTransaction();
+
+            // Validate the request data
+            $validated = $request->validate([
+                'name' => 'required|string|max:255',
+                'email' => 'required|email|unique:users,email',
+                'phone' => ['required', 'regex:/^(\+63|09)\d{9}$/'],
+                'password' => 'required|min:8|confirmed',
+            ], [
+                'name.required' => 'Please enter your full name.',
+                'name.max' => 'Your name cannot exceed 255 characters.',
+                'email.required' => 'Please enter your email address.',
+                'email.email' => 'Please enter a valid email address.',
+                'email.unique' => 'This email is already registered. Please use a different email or try logging in.',
+                'phone.required' => 'Please enter your phone number.',
+                'phone.regex' => 'Please enter a valid Philippine mobile number starting with 09 or +63.',
+                'password.required' => 'Please enter a password.',
+                'password.min' => 'Your password must be at least 8 characters long.',
+                'password.confirmed' => 'The password confirmation does not match.',
+            ]);
+
+            // Create the user
+            $user = User::create([
+                'name' => $validated['name'],
+                'email' => $validated['email'],
+                'phone' => $validated['phone'],
+                'password' => Hash::make($validated['password']),
+            ]);
+
+            if (!$user) {
+                throw new \Exception('Failed to create user account.');
+            }
+
+            DB::commit();
+
+            return redirect()->route('login')
+                ->with('success', 'Registration successful! You can now login.');
+
+        } catch (ValidationException $e) {
+            DB::rollBack();
+            Log::warning('Registration validation failed: ' . json_encode($e->errors()));
+            throw $e;
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Registration failed: ' . $e->getMessage());
+            Log::error('Stack trace: ' . $e->getTraceAsString());
             
-        ]); 
-          
-
-        // Create the user
-        User::create([
-            'name' => $request->name,
-            'email' => $request->email,
-            'phone' => '+63' . $request->phone, // Add +63 prefix to the phone number
-            'password' => Hash::make($request->password), // Hash the password
-        ]);
-
-        // Redirect to the login page with a success message
-        return redirect()->route('login')->with('success', 'Account created successfully. Please log in.');
+            return back()
+                ->withInput()
+                ->withErrors([
+                    'error' => 'Registration failed: ' . $e->getMessage() . '. Please try again or contact support if the problem persists.'
+                ]);
+        }
     }
-
 
     /**
      * Handle user login.
      */
     public function login(Request $request)
     {
-        // Validate the login form
         $request->validate([
-            'email' => 'required|string',
-            'password' => 'required|string',
+            'email' => 'required|email',
+            'password' => 'required',
+        ], [
+            'email.required' => 'Please enter your email address.',
+            'email.email' => 'Please enter a valid email address.',
+            'password.required' => 'Please enter your password.',
         ]);
 
-        // Check if the input is an email or username
-        $credentials = filter_var($request->email, FILTER_VALIDATE_EMAIL)
-            ? ['email' => $request->email, 'password' => $request->password]
-            : ['name' => $request->email, 'password' => $request->password];
-
-        // Attempt to log in the user
-        if (Auth::attempt($credentials)) {
-            // Regenerate session to prevent session fixation attacks
+        $credentials = $request->only('email', 'password');
+        if (Auth::attempt($credentials, $request->filled('remember'))) {
             $request->session()->regenerate();
-
-            // Redirect to the dashboard
-            return redirect('/dashboard')->with('success', 'Login successful. Welcome!');
+            return redirect()->intended('dashboard');
         }
-
-        // If login fails, redirect back with an error message
-        return back()->withErrors([
-            'email' => 'Invalid credentials or account does not exist.',
-        ])->withInput();
+        return back()->withErrors(['email' => 'Invalid email or password.'])->withInput();
     }
 
     /**
@@ -98,4 +125,4 @@ class AuthController extends Controller
         // Redirect to the login page with a success message
         return redirect('/login')->with('success', 'You have been logged out successfully.');
     }
-};
+}

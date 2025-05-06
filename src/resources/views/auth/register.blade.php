@@ -1,194 +1,334 @@
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ __('Register') }} - {{ config('app.name') }}</title>
+    <title>Register - Contact Manager</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <style>
         body {
-            background: linear-gradient(135deg, #4facfe, #00f2fe);
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #e4e8f0 100%);
             min-height: 100vh;
+            position: relative;
+        }
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%232D6CDF' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+            pointer-events: none;
+        }
+        .register-container {
+            background: #ffffff;
+            padding: 2.5rem;
+            border-radius: 16px;
+            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+            max-width: 420px;
+            width: 100%;
+            margin: 0 auto;
+            position: relative;
+            overflow: hidden;
+            animation: fadeIn 0.5s ease;
+        }
+        .register-container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #2D6CDF, #1A4FA0);
+        }
+        .register-title {
+            font-weight: 700;
+            color: #1A202C;
+            font-size: 1.75rem;
+            margin-bottom: 0.5rem;
+            letter-spacing: -0.5px;
+        }
+        .register-subtitle {
+            color: #64748B;
+            font-size: 0.95rem;
+            margin-bottom: 2rem;
+            line-height: 1.5;
+        }
+        .form-label {
+            font-weight: 500;
+            color: #334155;
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+        }
+        .form-control {
+            border: 1.5px solid #E2E8F0;
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            font-size: 0.95rem;
+            transition: all 0.2s ease;
+            background-color: #F8FAFC;
+        }
+        .form-control:focus {
+            border-color: #2D6CDF;
+            box-shadow: 0 0 0 3px rgba(45, 108, 223, 0.1);
+            background-color: #ffffff;
+        }
+        .form-control::placeholder {
+            color: #94A3B8;
+        }
+        .password-field {
+            position: relative;
+        }
+        .password-toggle {
+            position: absolute;
+            right: 1rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #94A3B8;
+            cursor: pointer;
+            transition: color 0.2s ease;
+            background: none;
+            border: none;
+            padding: 0;
+        }
+        .password-toggle:hover {
+            color: #2D6CDF;
+        }
+        .password-strength {
+            height: 4px;
+            background: #E2E8F0;
+            border-radius: 2px;
+            margin-top: 0.5rem;
+            overflow: hidden;
+        }
+        .password-strength-bar {
+            height: 100%;
+            width: 0;
+            transition: all 0.3s ease;
+        }
+        .password-strength-bar.weak { width: 33.33%; background: #EF4444; }
+        .password-strength-bar.medium { width: 66.66%; background: #F59E0B; }
+        .password-strength-bar.strong { width: 100%; background: #10B981; }
+        .form-text {
+            font-size: 0.8rem;
+            color: #64748B;
+            margin-top: 0.5rem;
+        }
+        .btn-primary {
+            background: #2D6CDF;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 0.95rem;
+            padding: 0.75rem 1.5rem;
+            transition: all 0.2s ease;
+            width: 100%;
+            margin-top: 1rem;
+        }
+        .btn-primary:hover {
+            background: #1A4FA0;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(45, 108, 223, 0.2);
+        }
+        .btn-primary:active {
+            transform: translateY(0);
+        }
+        .nav-links {
+            margin-top: 2rem;
+            text-align: center;
+            padding-top: 1.5rem;
+            border-top: 1px solid #E2E8F0;
             display: flex;
             justify-content: center;
             align-items: center;
+            gap: 2rem;
         }
-        .card {
-            max-width: 400px;
-            width: 100%;
-            border-radius: 10px;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-        }
-        .form-control.is-invalid {
-            border-color: #dc3545;
-        }
-        .form-control:focus {
-            box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
-        }
-        .input-group-text {
-            background-color: #e9ecef;
-        }
-        .back-button {
-            margin-top: 20px;
-            display: block;
-            text-align: center;
-            color: #007bff;
+        .nav-links a {
+            color: #2D6CDF;
             text-decoration: none;
-            font-weight: bold;
-            transition: color 0.3s ease;
+            font-weight: 500;
+            font-size: 0.9rem;
+            transition: color 0.2s ease;
+            white-space: nowrap;
         }
-        .back-button:hover {
-            color: #0056b3;
+        .nav-links a:hover {
+            color: #1A4FA0;
         }
-        .form-text {
-            font-size: 0.875rem;
-            color: #6c757d;
+        .nav-links a:last-child {
+            color: #64748B;
         }
-        .terms-label {
-            font-size: 0.875rem;
-            color: #495057;
+        .alert {
+            border: none;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+            background-color: #FEE2E2;
+            color: #DC2626;
+            font-size: 0.9rem;
+            animation: shake 0.5s ease;
         }
-        .terms-link {
-            color: #007bff;
-            text-decoration: none;
+        .alert ul {
+            margin: 0;
+            padding-left: 1.2rem;
         }
-        .terms-link:hover {
-            color: #0056b3;
+        .alert li {
+            margin: 0.25rem 0;
+        }
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+        @media (max-width: 500px) {
+            .register-container {
+                padding: 1.5rem;
+                margin: 1rem;
+            }
+            .register-title {
+                font-size: 1.5rem;
+            }
+            .nav-links {
+                flex-direction: column;
+                gap: 1rem;
+            }
+            .nav-links a {
+                display: block;
+                width: 100%;
+            }
         }
     </style>
 </head>
 <body>
-
-<div class="container d-flex justify-content-center align-items-center" style="min-height: 100vh;">
-    <div class="card p-4">
-        <div class="card-body">
-            <h2 class="card-title text-center text-primary mb-4">{{ __('Register') }}</h2>
-            <form id="registerForm" method="POST" action="{{ route('register.submit') }}" novalidate>
+    <div class="container d-flex align-items-center justify-content-center min-vh-100">
+        <div class="register-container">
+            <div class="text-center mb-4">
+                <div class="register-title">Create Account</div>
+                <div class="register-subtitle">Join us to manage your contacts efficiently</div>
+            </div>
+            @if ($errors->any())
+                <div class="alert">
+                    <ul>
+                        @foreach ($errors->all() as $error)
+                            <li>{{ $error }}</li>
+                        @endforeach
+                    </ul>
+                </div>
+            @endif
+            <form method="POST" action="{{ route('register.submit') }}" id="registerForm">
                 @csrf
-
-                <!-- Name -->
                 <div class="mb-3">
-                    <label for="name" class="form-label">{{ __('Name') }}</label>
-                    <div class="input-group">
-                        <span class="input-group-text"><i class="bi bi-person"></i></span>
-                        <input type="text" class="form-control" id="name" name="name" placeholder="{{ __('Name') }}" required pattern="^[a-zA-Z0-9 ]+$">
-                    </div>
-                    <div class="invalid-feedback">{{ __('Please enter a valid name (letters and numbers only).') }}</div>
+                    <label for="name" class="form-label">Full Name</label>
+                    <input type="text" class="form-control" id="name" name="name" placeholder="Enter your full name" required autofocus>
                 </div>
-
-                <!-- Email -->
                 <div class="mb-3">
-                    <label for="email" class="form-label">{{ __('Email') }}</label>
-                    <div class="input-group">
-                        <span class="input-group-text"><i class="bi bi-envelope"></i></span>
-                        <input type="email" class="form-control" id="email" name="email" placeholder="{{ __('Email') }}" required>
-                    </div>
-                    <div class="invalid-feedback">{{ __('Please enter a valid @gmail.com email address.') }}</div>
+                    <label for="email" class="form-label">Email Address</label>
+                    <input type="email" class="form-control" id="email" name="email" placeholder="Enter your email" required>
                 </div>
-
-                <!-- Phone Number -->
                 <div class="mb-3">
-                    <label for="phone" class="form-label">{{ __('Phone Number') }}</label>
-                    <div class="input-group">
-                        <span class="input-group-text">+63</span>
-                        <input type="text" class="form-control" id="phone" name="phone" placeholder="{{ __('9-digit number (e.g. 912345678)') }}" required maxlength="9">
-                    </div>
-                    <div class="form-text">{{ __('Enter your number.') }}</div>
-                    <div class="invalid-feedback">{{ __('Please enter exactly 9 digits after +63.') }}</div>
+                    <label for="phone" class="form-label">Phone Number</label>
+                    <input type="tel" class="form-control" id="phone" name="phone" placeholder="Enter your phone number" required>
+                    <small class="form-text">Please enter a valid Philippine mobile number starting with 09 or +63</small>
                 </div>
-
-                <!-- Password -->
                 <div class="mb-3">
-                    <label for="password" class="form-label">{{ __('Password') }}</label>
-                    <div class="input-group">
-                        <span class="input-group-text"><i class="bi bi-lock"></i></span>
-                        <input type="password" class="form-control" id="password" name="password" placeholder="{{ __('Password') }}" required>
-                        <button type="button" class="btn btn-outline-secondary" id="togglePassword">
+                    <label for="password" class="form-label">Password</label>
+                    <div class="password-field">
+                        <input type="password" class="form-control" id="password" name="password" placeholder="Create a password" required>
+                        <button type="button" class="password-toggle" onclick="togglePassword('password')">
                             <i class="bi bi-eye"></i>
                         </button>
                     </div>
-                    <div class="invalid-feedback">{{ __('Password is required.') }}</div>
-                </div>
-
-                <!-- Confirm Password -->
-                <div class="mb-3">
-                    <label for="password_confirmation" class="form-label">{{ __('Confirm Password') }}</label>
-                    <div class="input-group">
-                        <span class="input-group-text"><i class="bi bi-lock"></i></span>
-                        <input type="password" class="form-control" id="password_confirmation" name="password_confirmation" placeholder="{{ __('Confirm Password') }}" required>
+                    <div class="password-strength">
+                        <div class="password-strength-bar" id="passwordStrength"></div>
                     </div>
-                    <div class="invalid-feedback">{{ __('Please confirm your password.') }}</div>
+                    <small class="form-text">Password must be at least 8 characters long</small>
                 </div>
-
-                <!-- Terms and Conditions -->
-                <div class="mb-3 form-check">
-                    <input type="checkbox" class="form-check-input" id="terms" name="terms" required>
-                    <label class="form-check-label terms-label" for="terms">
-                        {{ __('I agree to the') }} <a href="/terms" class="terms-link" target="_blank">{{ __('Terms and Conditions') }}</a>.
-                    </label>
-                    <div class="invalid-feedback">{{ __('You must agree to the Terms and Conditions to proceed.') }}</div>
+                <div class="mb-3">
+                    <label for="password_confirmation" class="form-label">Confirm Password</label>
+                    <div class="password-field">
+                        <input type="password" class="form-control" id="password_confirmation" name="password_confirmation" placeholder="Confirm your password" required>
+                        <button type="button" class="password-toggle" onclick="togglePassword('password_confirmation')">
+                            <i class="bi bi-eye"></i>
+                        </button>
+                    </div>
                 </div>
-
-                <!-- Submit Button -->
-                <button type="submit" class="btn btn-primary w-100" id="submitButton" disabled>{{ __('Register') }}</button>
-
-                <!-- Back to Home Button -->
-                <a href="/" class="back-button">← {{ __('Back to Home') }}</a>
+                <button type="submit" class="btn btn-primary">Create Account</button>
             </form>
+            <div class="nav-links">
+                <a href="{{ route('login') }}">Already have an account?</a>
+                <a href="/">Back to Home</a>
+            </div>
         </div>
     </div>
-</div>
-
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-<script>
-document.addEventListener('DOMContentLoaded', () => {
-    const form = document.getElementById('registerForm');
-    const nameInput = document.getElementById('name');
-    const emailInput = document.getElementById('email');
-    const phoneInput = document.getElementById('phone');
-    const passwordInput = document.getElementById('password');
-    const passwordConfirmationInput = document.getElementById('password_confirmation');
-    const togglePassword = document.getElementById('togglePassword');
-    const submitButton = document.getElementById('submitButton');
-    const termsCheckBox = document.getElementById('terms');
-
-    // Show/Hide Password
-    togglePassword.addEventListener('click', () => {
-        const type = passwordInput.type === 'password' ? 'text' : 'password';
-        passwordInput.type = type;
-        togglePassword.innerHTML = type === 'password' ? '<i class="bi bi-eye"></i>' : '<i class="bi bi-eye-slash"></i>';
-    });
-
-    // Enable/Disable Submit Button based on form validation
-    const validateForm = () => {
-        const nameValid = /^[a-zA-Z0-9 ]+$/.test(nameInput.value.trim());
-        const emailValid = emailInput.value.trim().endsWith('@gmail.com');
-        const phoneValid = phoneInput.value.trim().length === 9;
-        const passwordValid = passwordInput.value.trim() !== '';
-        const passwordMatch = passwordInput.value === passwordConfirmationInput.value;
-        const termsChecked = termsCheckBox.checked;
-
-        submitButton.disabled = !(nameValid && emailValid && phoneValid && passwordValid && passwordMatch && termsChecked);
-    };
-
-    // Real-time Validation
-    form.addEventListener('input', validateForm);
-
-    // Phone number field handling
-    phoneInput.addEventListener('input', (e) => {
-        let phoneValue = e.target.value.replace(/[^0-9]/g, ''); // Only allow digits
-        if (phoneValue.length > 9) phoneValue = phoneValue.substring(0, 9); // Limit to 9 digits
-        phoneInput.value = phoneValue;
-    });
-
-    // Form submission logic
-    form.addEventListener('submit', (e) => {
-        if (submitButton.disabled) {
-            e.preventDefault();
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function togglePassword(fieldId) {
+            const passwordInput = document.getElementById(fieldId);
+            const toggleButton = document.querySelector(`#${fieldId} + .password-toggle i`);
+            
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                toggleButton.classList.remove('bi-eye');
+                toggleButton.classList.add('bi-eye-slash');
+            } else {
+                passwordInput.type = 'password';
+                toggleButton.classList.remove('bi-eye-slash');
+                toggleButton.classList.add('bi-eye');
+            }
         }
-    });
-});
-</script>
+
+        function formatPhoneNumber(input) {
+            let value = input.value.replace(/\D/g, '');
+            if (value.startsWith('63')) {
+                value = '0' + value.substring(2);
+            }
+            if (value.length > 11) {
+                value = value.slice(0, 11);
+            }
+            input.value = value;
+        }
+
+        function checkPasswordStrength(password) {
+            const strengthBar = document.getElementById('passwordStrength');
+            let strength = 0;
+            
+            if (password.length >= 8) strength += 1;
+            if (password.match(/[a-z]+/)) strength += 1;
+            if (password.match(/[A-Z]+/)) strength += 1;
+            if (password.match(/[0-9]+/)) strength += 1;
+            if (password.match(/[^a-zA-Z0-9]+/)) strength += 1;
+
+            strengthBar.className = 'password-strength-bar';
+            if (strength <= 2) {
+                strengthBar.classList.add('weak');
+            } else if (strength <= 4) {
+                strengthBar.classList.add('medium');
+            } else {
+                strengthBar.classList.add('strong');
+            }
+        }
+
+        document.getElementById('phone').addEventListener('input', function() {
+            formatPhoneNumber(this);
+        });
+
+        document.getElementById('password').addEventListener('input', function() {
+            checkPasswordStrength(this.value);
+        });
+    </script>
 </body>
 </html>

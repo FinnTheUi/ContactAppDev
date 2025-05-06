@@ -144,6 +144,15 @@
             </div>
             <div class="error-message" id="phoneError"></div>
 
+            <label for="category_id">Category:</label>
+            <select id="category_id" name="category_id" required>
+                <option value="" disabled>Select a category</option>
+                @foreach($categories as $category)
+                    <option value="{{ $category->id }}" {{ $contact->category_id == $category->id ? 'selected' : '' }}>{{ $category->name }}</option>
+                @endforeach
+            </select>
+            <div class="error-message" id="categoryError"></div>
+
             <button type="submit"><i class="bi bi-save"></i> Update Contact</button>
         </form>
         <a href="{{ route('dashboard') }}" class="back-btn"><i class="bi bi-arrow-left"></i> Back to Dashboard</a>

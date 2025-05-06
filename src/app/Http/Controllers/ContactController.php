@@ -6,6 +6,7 @@ use App\Models\Contact;
 use App\Models\Category;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Yajra\DataTables\DataTables;
 
 use Illuminate\Routing\Controller;
 
@@ -16,91 +17,265 @@ class ContactController extends Controller
         $this->middleware('auth');
     }
 
-    /**
-     * Display a listing of the contacts.
-     */
+    /** Display the contact dashboard */
     public function index(Request $request)
     {
-        $search = $request->input('search');
-        $categoryFilter = $request->input('category_id');
-
-        // Get categories for the dropdown based on the current user
         $categories = Category::forUser(Auth::id())->get();
-
-        // Fetch contacts, with optional search and category filter
-        $contacts = Contact::query()
-            ->where('user_id', Auth::id())
-            ->when($search, function ($query, $search) {
-                $query->where('name', 'like', "%{$search}%")
-                      ->orWhere('email', 'like', "%{$search}%")
-                      ->orWhere('phone', 'like', "%{$search}%");
-            })
-            ->when($categoryFilter, function ($query, $categoryFilter) {
-                $query->where('category_id', $categoryFilter);
-            })
-            ->orderBy('name')
-            ->get();
-
-        // Return the view with the contacts and categories
-        return view('contacts.index', compact('contacts', 'categories'));
+        return view('contacts.index', compact('categories'));
     }
 
-    /**
-     * Show the form for editing a contact.
-     */
+    /** Store a newly created contact */
+    public function store(Request $request)
+    {
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:20', 'regex:/^[A-Za-z0-9\s]+$/'],
+            'phone' => ['required', 'regex:/^(\+63|09)\d{9}$/'],
+            'email' => ['required', 'email', 'max:30', 'regex:/^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/'],
+            'category_id' => 'nullable|exists:categories,id',
+        ], [
+            'name.required' => 'Please enter the contact\'s name.',
+            'name.max' => 'The name cannot exceed 20 characters.',
+            'name.regex' => 'Name can only contain letters, numbers, and spaces.',
+            'phone.required' => 'Please enter the contact\'s phone number.',
+            'phone.regex' => 'Please enter a valid Philippine mobile number starting with 09 or +63.',
+            'email.required' => 'Please enter the contact\'s email address.',
+            'email.email' => 'Please enter a valid email address.',
+            'email.max' => 'Email cannot exceed 30 characters.',
+            'email.regex' => 'Please enter a valid email address format.',
+            'category_id.exists' => 'The selected category is invalid.',
+        ]);
+
+        // Check for duplicate phone number
+        $existingContact = Contact::where('user_id', Auth::id())
+            ->where('phone', $request->phone)
+            ->first();
+
+        if ($existingContact) {
+            if ($request->ajax()) {
+                return response()->json([
+                    'error' => 'A contact with this phone number already exists.',
+                    'errors' => ['phone' => ['This phone number is already registered in your contacts.']]
+                ], 422);
+            }
+            return back()->withInput()->withErrors(['phone' => 'A contact with this phone number already exists.']);
+        }
+
+        // Check for duplicate email
+        $existingEmail = Contact::where('user_id', Auth::id())
+            ->where('email', $request->email)
+            ->first();
+
+        if ($existingEmail) {
+            if ($request->ajax()) {
+                return response()->json([
+                    'error' => 'A contact with this email already exists.',
+                    'errors' => ['email' => ['This email is already registered in your contacts.']]
+                ], 422);
+            }
+            return back()->withInput()->withErrors(['email' => 'A contact with this email already exists.']);
+        }
+
+        $categoryId = $request->category_id;
+        if (!$categoryId) {
+            $uncat = Category::firstOrCreate(
+                [
+                    'name' => 'Uncategorized',
+                    'user_id' => Auth::id(),
+                ],
+                [
+                    'type' => 'personal',
+                ]
+            );
+            $categoryId = $uncat->id;
+        }
+
+        try {
+            Contact::create([
+                'name' => $request->name,
+                'email' => $request->email,
+                'phone' => $request->phone,
+                'telephone' => $request->telephone,
+                'user_id' => Auth::id(),
+                'category_id' => $categoryId,
+            ]);
+
+            if ($request->ajax()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Contact added successfully!'
+                ]);
+            }
+            return redirect()->route('dashboard')->with('success', 'Contact created successfully.');
+        } catch (\Exception $e) {
+            if ($request->ajax()) {
+                return response()->json([
+                    'error' => 'Error creating contact. Please try again.',
+                    'errors' => ['general' => ['An unexpected error occurred. Please try again.']]
+                ], 500);
+            }
+            return back()->withInput()->withErrors(['general' => 'Error creating contact. Please try again.']);
+        }
+    }
+
+    /** Edit a contact */
     public function edit(Contact $contact)
     {
-        $this->authorizeContact($contact);  // Check if the user owns the contact
-
-        // Get categories for the dropdown based on the current user
+        $this->authorizeContact($contact);
         $categories = Category::forUser(Auth::id())->get();
-
         return view('contacts.edit', compact('contact', 'categories'));
     }
 
-    /**
-     * Update an existing contact.
-     */
+    /** Update a contact */
     public function update(Request $request, Contact $contact)
     {
-        $this->authorizeContact($contact);  // Check if the user owns the contact
+        $this->authorizeContact($contact);
 
         $request->validate([
-            'name' => ['required', 'regex:/^[A-Za-z0-9 ]+$/', 'max:255'],
-            'email' => ['required', 'regex:/^[A-Za-z0-9]{1,15}@gmail\.com$/'],
-            'phone' => ['required', 'regex:/^\+63\d{8,9}$/'],
+            'name' => ['required', 'string', 'max:20', 'regex:/^[A-Za-z0-9\s]+$/'],
+            'phone' => ['required', 'regex:/^(\+63|09)\d{9}$/'],
+            'email' => ['required', 'email', 'max:30', 'regex:/^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/'],
+            'category_id' => ['nullable', 'exists:categories,id'],
+        ], [
+            'name.required' => 'Please enter the contact\'s name.',
+            'name.max' => 'The name cannot exceed 20 characters.',
+            'name.regex' => 'Name can only contain letters, numbers, and spaces.',
+            'phone.required' => 'Please enter the contact\'s phone number.',
+            'phone.regex' => 'Please enter a valid Philippine mobile number starting with 09 or +63.',
+            'email.required' => 'Please enter the contact\'s email address.',
+            'email.email' => 'Please enter a valid email address.',
+            'email.max' => 'Email cannot exceed 30 characters.',
+            'email.regex' => 'Please enter a valid email address format.',
+            'category_id.exists' => 'The selected category is invalid.',
         ]);
 
-        $contact->update([
-            'name' => $request->name,
-            'email' => $request->email,
-            'phone' => $request->phone,
-            'category_id' => $request->category_id, // Make sure category is updated
-        ]);
+        // Check for duplicate phone number (excluding current contact)
+        $existingPhone = Contact::where('user_id', Auth::id())
+            ->where('phone', $request->phone)
+            ->where('id', '!=', $contact->id)
+            ->first();
 
-        return redirect()->route('contacts.index')->with('success', 'Contact updated successfully.');
+        if ($existingPhone) {
+            if ($request->ajax()) {
+                return response()->json([
+                    'error' => 'A contact with this phone number already exists.',
+                    'errors' => ['phone' => ['This phone number is already registered in your contacts.']]
+                ], 422);
+            }
+            return back()->withInput()->withErrors(['phone' => 'A contact with this phone number already exists.']);
+        }
+
+        // Check for duplicate email (excluding current contact)
+        $existingEmail = Contact::where('user_id', Auth::id())
+            ->where('email', $request->email)
+            ->where('id', '!=', $contact->id)
+            ->first();
+
+        if ($existingEmail) {
+            if ($request->ajax()) {
+                return response()->json([
+                    'error' => 'A contact with this email already exists.',
+                    'errors' => ['email' => ['This email is already registered in your contacts.']]
+                ], 422);
+            }
+            return back()->withInput()->withErrors(['email' => 'A contact with this email already exists.']);
+        }
+
+        try {
+            $categoryId = $request->category_id;
+            if (!$categoryId) {
+                $uncat = Category::firstOrCreate([
+                    'name' => 'Uncategorized',
+                    'user_id' => Auth::id(),
+                ], [
+                    'type' => 'personal',
+                ]);
+                $categoryId = $uncat->id;
+            }
+
+            $contact->update([
+                'name' => $request->name,
+                'email' => $request->email,
+                'phone' => $request->phone,
+                'telephone' => $request->telephone,
+                'category_id' => $categoryId,
+            ]);
+
+            if ($request->ajax()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Contact updated successfully!'
+                ]);
+            }
+            return redirect()->route('dashboard')->with('success', 'Contact updated successfully.');
+        } catch (\Exception $e) {
+            if ($request->ajax()) {
+                return response()->json([
+                    'error' => 'Error updating contact. Please try again.',
+                    'errors' => ['general' => ['An unexpected error occurred. Please try again.']]
+                ], 500);
+            }
+            return back()->withInput()->withErrors(['general' => 'Error updating contact. Please try again.']);
+        }
     }
 
-    /**
-     * Delete a contact.
-     */
+    /** Delete a contact */
     public function destroy(Contact $contact)
     {
-        $this->authorizeContact($contact);  // Check if the user owns the contact
-
-        $contact->delete();
-
-        return redirect()->route('contacts.index')->with('success', 'Contact deleted successfully.');
+        $this->authorizeContact($contact);
+        
+        try {
+            $contact->delete();
+            
+            if (request()->ajax()) {
+                return response()->json(['success' => true]);
+            }
+            
+            return redirect()->route('dashboard')->with('success', 'Contact deleted successfully.');
+        } catch (\Exception $e) {
+            if (request()->ajax()) {
+                return response()->json(['error' => 'Error deleting contact'], 500);
+            }
+            
+            return redirect()->route('dashboard')->with('error', 'Error deleting contact');
+        }
     }
 
-    /**
-     * Export contacts to CSV.
-     */
+    /** Show a contact */
+    public function show(Contact $contact)
+    {
+        $this->authorizeContact($contact);
+        return view('contacts.show', compact('contact'));
+    }
+
+    /** Get DataTables JSON data */
+    public function getData(Request $request)
+    {
+        $contacts = Contact::with('category')
+            ->where('user_id', Auth::id());
+
+        if ($request->filled('category_id')) {
+            $contacts->where('category_id', $request->category_id);
+        }
+
+        $contacts->select(['id', 'name', 'email', 'phone', 'category_id', 'user_id']);
+
+        return DataTables::of($contacts)
+            ->addColumn('category', function($contact) {
+                return $contact->category ? $contact->category->name : '—';
+            })
+            ->addColumn('action', function($contact) {
+                return view('partials.actions.contact-actions', compact('contact'))->render();
+            })
+            ->rawColumns(['action'])
+            ->make(true);
+    }
+
+    /** Export all user contacts to CSV */
     public function export()
     {
         $contacts = Contact::where('user_id', Auth::id())->get();
 
-        $csvFileName = 'contacts_' . date('Y-m-d') . '.csv';
+        $csvFileName = 'contacts_' . now()->format('Y-m-d') . '.csv';
         $headers = [
             'Content-Type' => 'text/csv',
             'Content-Disposition' => 'attachment; filename="' . $csvFileName . '"',
@@ -109,34 +284,24 @@ class ContactController extends Controller
         return response()->stream(function () use ($contacts) {
             $handle = fopen('php://output', 'w');
             fputcsv($handle, ['Name', 'Email', 'Phone']);
-
-            foreach ($contacts as $contact) {
-                fputcsv($handle, [$contact->name, $contact->email, $contact->phone]);
+            foreach ($contacts as $c) {
+                fputcsv($handle, [$c->name, $c->email, $c->phone]);
             }
-
             fclose($handle);
         }, 200, $headers);
     }
 
-    /**
-     * Authorize the contact to make sure it belongs to the user.
-     */
-    protected function authorizeContact(Contact $contact)
-    {
-        // Ensure the contact belongs to the authenticated user
-        if ($contact->user_id !== Auth::id()) {
-            abort(403, 'Unauthorized action. You do not own this contact.');
-        }
-    }
+    /** CATEGORY SECTION **/
 
-    /**
-     * Store a newly created category.
-     */
     public function storeCategory(Request $request)
     {
         $request->validate([
-            'name' => 'required|string|max:255',
+            'name' => ['required', 'regex:/^[A-Za-z0-9 ]+$/', 'max:255', 'unique:categories,name,NULL,id,user_id,' . Auth::id()],
             'type' => 'required|in:business,personal',
+        ], [
+            'name.required' => 'Category name cannot be empty.',
+            'name.regex' => 'Category name cannot contain special characters.',
+            'name.unique' => 'Category name already exists.',
         ]);
 
         Category::create([
@@ -148,76 +313,59 @@ class ContactController extends Controller
         return redirect()->route('dashboard')->with('success', 'Category added successfully!');
     }
 
-    /**
-     * Delete a category after user confirmation.
-     */
-    public function destroyCategory($id)
+    public function destroyCategory($id, Request $request)
     {
         $category = Category::where('id', $id)->where('user_id', Auth::id())->firstOrFail();
 
-        // Prevent deletion if the category has contacts
         if ($category->contacts()->exists()) {
-            return redirect()->route('categories.index')
-                             ->with('error', 'Cannot delete a category that has associated contacts.');
+            if ($request->ajax()) {
+                return response()->json(['error' => 'Cannot delete a category with associated contacts.'], 400);
+            }
+            return redirect()->route('contacts.index')
+                ->with('error', 'Cannot delete a category with associated contacts.');
         }
 
         $category->delete();
 
-        return redirect()->route('categories.index')
-                         ->with('success', 'Category deleted successfully.');
+        if ($request->ajax()) {
+            return response()->json(['success' => true]);
+        }
+        return redirect()->route('contacts.index')->with('success', 'Category deleted successfully.');
     }
 
-    /**
-     * Display a listing of the categories.
-     */
     public function indexCategories()
     {
         $categories = Category::where('user_id', Auth::id())->get();
-
         return view('categories.index', compact('categories'));
     }
 
-    /**
-     * Show the form for creating a new category.
-     */
     public function createCategory()
     {
         return view('categories.create');
     }
 
-    /**
-     * Store a newly created contact.
-     */
-    public function store(Request $request)
+    public function updateCategory(Request $request, Category $category)
     {
         $request->validate([
-            'name' => ['required', 'regex:/^[A-Za-z0-9 ]+$/', 'max:255'],
-            'email' => ['required', 'regex:/^[A-Za-z0-9]{1,15}@gmail\.com$/'],
-            'phone' => ['required', 'regex:/^\+63\d{8,9}$/'],
+            'name' => ['required', 'regex:/^[A-Za-z0-9 ]+$/', 'max:255', 'unique:categories,name,' . $category->id . ',id,user_id,' . Auth::id()],
+            'type' => 'required|in:business,personal',
         ], [
-            'name.regex' => 'Name must contain only letters and numbers.',
-            'email.regex' => 'Email must contain only letters and numbers (max 15) and end with @gmail.com.',
-            'phone.regex' => 'Phone must start with +63 and be 11 to 12 characters total.',
+            'name.required' => 'Category name cannot be empty.',
+            'name.regex' => 'Category name cannot contain special characters.',
+            'name.unique' => 'Category name already exists.',
         ]);
-
-        Contact::create([
+        $category->update([
             'name' => $request->name,
-            'email' => $request->email,
-            'phone' => $request->phone,
-            'user_id' => Auth::id(),
-            'category_id' => $request->category_id, // Add category assignment here
+            'type' => $request->type,
         ]);
-
-        return redirect()->route('contacts.index')->with('success', 'Contact created successfully.');
+        return redirect()->route('dashboard')->with('success', 'Category updated successfully!');
     }
 
-    /**
-     * Show a specific contact.
-     */
-    public function show(Contact $contact)
+    /** Ensure contact belongs to the logged-in user */
+    protected function authorizeContact(Contact $contact)
     {
-        $this->authorizeContact($contact);  // Check if the user owns the contact
-
-        return view('contacts.show', compact('contact'));
+        if ($contact->user_id !== Auth::id()) {
+            abort(403, 'Unauthorized action.');
+        }
     }
 }

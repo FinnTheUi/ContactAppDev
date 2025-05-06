@@ -14,9 +14,8 @@ class Contact extends Model
         'name',
         'email',
         'phone',
-        'message',     // Assuming 'message' is part of the contact data
         'user_id',
-        'category_id', // Link to the category
+        'category_id',
     ];
 
     /**
@@ -28,10 +27,6 @@ class Contact extends Model
         return $this->belongsTo(User::class);
     }
 
-    /**
-     * Define the relationship between Contact and Category.
-     * A contact belongs to a category.
-     */
     public function category()
     {
         return $this->belongsTo(Category::class);
