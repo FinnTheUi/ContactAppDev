@@ -293,6 +293,17 @@
 
         function formatPhoneNumber(input) {
             let value = input.value.replace(/\D/g, '');
+            
+            // If the user types +63, keep it
+            if (input.value.startsWith('+63')) {
+                if (value.length > 12) {
+                    value = value.slice(0, 12);
+                }
+                input.value = '+63' + value.substring(3);
+                return;
+            }
+            
+            // Otherwise, format as 09
             if (value.startsWith('63')) {
                 value = '0' + value.substring(2);
             }
