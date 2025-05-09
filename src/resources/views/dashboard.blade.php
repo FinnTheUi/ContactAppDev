@@ -1476,6 +1476,7 @@
                     formData.append('_method', 'PUT');
                     formData.append('name', $('#profile_name').val());
                     formData.append('email', $('#profile_email').val());
+                    formData.append('phone', $('#profile_phone').val());
                     
                     $('#cropButton').prop('disabled', true).html('<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Uploading...');
                     
@@ -1500,7 +1501,11 @@
                             } else if (xhr.status === 413) {
                                 msg += 'The image file is too large. Please choose an image smaller than 2MB.';
                             } else if (xhr.status === 422) {
-                                msg += 'Invalid image format. Please use JPEG, PNG, JPG, or GIF.';
+                                if (xhr.responseJSON && xhr.responseJSON.errors) {
+                                    msg = Object.values(xhr.responseJSON.errors).join('\n');
+                                } else {
+                                    msg += 'Invalid image format. Please use JPEG, PNG, JPG, or GIF.';
+                                }
                             } else {
                                 msg += 'Please try again.';
                             }

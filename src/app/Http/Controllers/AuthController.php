@@ -37,7 +37,7 @@ class AuthController extends Controller
             $validated = $request->validate([
                 'name' => 'required|string|max:255',
                 'email' => 'required|email|unique:users,email',
-                'phone' => ['required', 'regex:/^(\+63|09)\d{9}$/'],
+                'phone' => ['required', 'regex:/^(\+63|09)\d{9}$/', 'unique:users,phone'],
                 'password' => 'required|min:8|confirmed',
             ], [
                 'name.required' => 'Please enter your full name.',
@@ -47,6 +47,7 @@ class AuthController extends Controller
                 'email.unique' => 'This email is already registered. Please use a different email or try logging in.',
                 'phone.required' => 'Please enter your phone number.',
                 'phone.regex' => 'Please enter a valid Philippine mobile number starting with 09 or +63.',
+                'phone.unique' => 'This phone number is already registered. Please use a different number or try logging in.',
                 'password.required' => 'Please enter a password.',
                 'password.min' => 'Your password must be at least 8 characters long.',
                 'password.confirmed' => 'The password confirmation does not match.',
@@ -124,5 +125,21 @@ class AuthController extends Controller
 
         // Redirect to the login page with a success message
         return redirect('/login')->with('success', 'You have been logged out successfully.');
+    }
+
+    /**
+     * Check if a phone number is available for registration.
+     */
+    public function checkPhoneAvailability(Request $request)
+    {
+        $request->validate([
+            'phone' => ['required', 'regex:/^(\+63|09)\d{9}$/']
+        ]);
+
+        $exists = User::where('phone', $request->phone)->exists();
+        
+        return response()->json([
+            'available' => !$exists
+        ]);
     }
 }

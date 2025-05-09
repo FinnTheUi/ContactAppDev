@@ -346,6 +346,11 @@ class ContactController extends Controller
 
     public function updateCategory(Request $request, Category $category)
     {
+        // Check if the category belongs to the authenticated user
+        if ($category->user_id !== Auth::id()) {
+            abort(403, 'Unauthorized action.');
+        }
+
         $request->validate([
             'name' => ['required', 'regex:/^[A-Za-z0-9 ]+$/', 'max:255', 'unique:categories,name,' . $category->id . ',id,user_id,' . Auth::id()],
             'type' => 'required|in:business,personal',

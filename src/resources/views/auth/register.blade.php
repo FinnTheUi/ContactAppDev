@@ -244,6 +244,7 @@
                     <label for="phone" class="form-label">Phone Number</label>
                     <input type="tel" class="form-control" id="phone" name="phone" placeholder="Enter your phone number" required>
                     <small class="form-text">Please enter a valid Philippine mobile number starting with 09 or +63</small>
+                    <div id="phoneError" class="invalid-feedback" style="display: none;"></div>
                 </div>
                 <div class="mb-3">
                     <label for="password" class="form-label">Password</label>
@@ -267,7 +268,13 @@
                         </button>
                     </div>
                 </div>
-                <button type="submit" class="btn btn-primary">Create Account</button>
+                <div class="mb-3 form-check">
+                    <input type="checkbox" class="form-check-input" id="termsCheckbox" required>
+                    <label class="form-check-label" for="termsCheckbox">
+                        I agree to the <a href="#" data-bs-toggle="modal" data-bs-target="#termsModal">Terms and Conditions</a>
+                    </label>
+                </div>
+                <button type="submit" class="btn btn-primary" id="submitButton" disabled>Create Account</button>
             </form>
             <div class="nav-links">
                 <a href="{{ route('login') }}">Already have an account?</a>
@@ -275,6 +282,42 @@
             </div>
         </div>
     </div>
+
+    <!-- Terms and Conditions Modal -->
+    <div class="modal fade" id="termsModal" tabindex="-1" aria-labelledby="termsModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="termsModalLabel">Terms and Conditions</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <h6>1. Acceptance of Terms</h6>
+                    <p>By accessing and using this Contact Manager application, you agree to be bound by these Terms and Conditions.</p>
+
+                    <h6>2. User Responsibilities</h6>
+                    <p>You are responsible for maintaining the confidentiality of your account and password. You agree to accept responsibility for all activities that occur under your account.</p>
+
+                    <h6>3. Data Privacy</h6>
+                    <p>We are committed to protecting your privacy. Your personal information and contact data will be handled in accordance with our Privacy Policy.</p>
+
+                    <h6>4. Prohibited Activities</h6>
+                    <p>You agree not to use the service for any illegal purposes or in violation of any local, state, national, or international laws.</p>
+
+                    <h6>5. Service Modifications</h6>
+                    <p>We reserve the right to modify or discontinue the service at any time without notice.</p>
+
+                    <h6>6. Limitation of Liability</h6>
+                    <p>We shall not be liable for any indirect, incidental, special, consequential, or punitive damages resulting from your use of the service.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" id="acceptTerms">Accept Terms</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
     <script>
@@ -335,14 +378,6 @@
             }
         }
 
-        document.getElementById('phone').addEventListener('input', function() {
-            formatPhoneNumber(this);
-        });
-
-        document.getElementById('password').addEventListener('input', function() {
-            checkPasswordStrength(this.value);
-        });
-
         $(document).ready(function() {
             // Set up CSRF token for all AJAX requests
             $.ajaxSetup({
@@ -351,9 +386,73 @@
                 }
             });
 
+            // Add debounce function
+            function debounce(func, wait) {
+                let timeout;
+                return function executedFunction(...args) {
+                    const later = () => {
+                        clearTimeout(timeout);
+                        func(...args);
+                    };
+                    clearTimeout(timeout);
+                    timeout = setTimeout(later, wait);
+                };
+            }
+
+            // Check phone number availability
+            const checkPhoneAvailability = debounce(function(phone) {
+                if (phone.length >= 11) { // Only check if phone number is complete
+                    $.ajax({
+                        url: '/check-phone',
+                        method: 'POST',
+                        data: { phone: phone },
+                        success: function(response) {
+                            if (!response.available) {
+                                $('#phone').addClass('is-invalid');
+                                $('#phoneError').text('This phone number is already registered. Please use a different number.').show();
+                                $('#submitButton').prop('disabled', true);
+                            } else {
+                                $('#phone').removeClass('is-invalid');
+                                $('#phoneError').hide();
+                                if ($('#termsCheckbox').is(':checked')) {
+                                    $('#submitButton').prop('disabled', false);
+                                }
+                            }
+                        }
+                    });
+                }
+            }, 500);
+
+            // Add phone input event listener
+            $('#phone').on('input', function() {
+                formatPhoneNumber(this);
+                checkPhoneAvailability(this.value);
+            });
+
+            // Handle terms acceptance
+            $('#acceptTerms').click(function() {
+                $('#termsCheckbox').prop('checked', true);
+                $('#termsModal').modal('hide');
+                updateSubmitButton();
+            });
+
+            // Update submit button state based on terms checkbox
+            $('#termsCheckbox').change(function() {
+                updateSubmitButton();
+            });
+
+            function updateSubmitButton() {
+                $('#submitButton').prop('disabled', !$('#termsCheckbox').is(':checked'));
+            }
+
             // Handle form submission
             $('#registerForm').on('submit', function(e) {
                 e.preventDefault();
+                
+                if (!$('#termsCheckbox').is(':checked')) {
+                    alert('Please accept the Terms and Conditions to proceed.');
+                    return;
+                }
                 
                 $.ajax({
                     url: $(this).attr('action'),

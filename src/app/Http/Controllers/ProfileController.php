@@ -16,6 +16,18 @@ use Illuminate\Support\Facades\DB;
 class ProfileController extends Controller
 {
     /**
+     * Display the user's profile.
+     *
+     * @return \Illuminate\View\View
+     */
+    public function show()
+    {
+        return view('profile.show', [
+            'user' => Auth::user()
+        ]);
+    }
+
+    /**
      * Update the user's profile information.
      *
      * @param  \Illuminate\Http\Request  $request
@@ -48,7 +60,15 @@ class ProfileController extends Controller
                 $this->removeProfileImage($user);
             }
 
-            $user->save();
+            DB::table('users')
+                ->where('id', $user->id)
+                ->update([
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'phone' => $user->phone,
+                    'profile_image' => $user->profile_image
+                ]);
+            
             DB::commit();
 
             return response()->json([
@@ -182,8 +202,16 @@ class ProfileController extends Controller
                 $this->removeProfileImage($user);
             }
 
-            // Generate unique filename with timestamp
-            $filename = 'profile-' . time() . '-' . Str::random(10) . '.jpg';
+            // Get the original file extension
+            $extension = $file->getClientOriginalExtension();
+            
+            // Validate file extension
+            if (!in_array(strtolower($extension), ['jpg', 'jpeg', 'png', 'gif'])) {
+                throw new \Exception('Invalid image format. Please use JPEG, PNG, JPG, or GIF.');
+            }
+
+            // Generate unique filename with timestamp and original extension
+            $filename = 'profile-' . time() . '-' . Str::random(10) . '.' . $extension;
             $directory = 'images/profile-images';
 
             // Ensure the directory exists
@@ -197,7 +225,7 @@ class ProfileController extends Controller
 
         } catch (\Exception $e) {
             Log::error('Image upload failed: ' . $e->getMessage());
-            throw new \Exception('Failed to upload profile image. Please try again.');
+            throw new \Exception($e->getMessage());
         }
     }
 

@@ -21,6 +21,7 @@ Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
 Route::post('/login', [AuthController::class, 'login'])->name('login.submit');
 Route::get('/register', [AuthController::class, 'showRegister'])->name('register');
 Route::post('/register', [AuthController::class, 'register'])->name('register.submit');
+Route::post('/check-phone', [AuthController::class, 'checkPhoneAvailability'])->name('check.phone');
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
 /*
@@ -34,6 +35,10 @@ Route::middleware('auth')->group(function () {
     // Dashboard
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/recent-contacts', [DashboardController::class, 'recentContacts'])->name('recent.contacts');
+
+    // Profile Routes
+    Route::get('/profile', [ProfileController::class, 'show'])->name('profile.show');
+    Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
 
     /*
     |--------------------------------------------------------------------------
@@ -70,6 +75,4 @@ Route::middleware('auth')->group(function () {
         Route::delete('/{contact}', [ContactController::class, 'destroy'])->name('destroy');
         Route::get('/{contact}', [ContactController::class, 'show'])->name('show');
     });
-
-    Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
 });
