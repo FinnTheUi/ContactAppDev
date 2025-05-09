@@ -766,11 +766,11 @@
                                 <option value="">No Category</option>
                                 @foreach($categories as $category)
                                     <option value="{{ $category->id }}">{{ $category->name }}</option>
-                @endforeach
-            </select>
+                                @endforeach
+                            </select>
                         </div>
                         <button type="submit" class="btn btn-primary w-100">Add Contact</button>
-        </form>
+                    </form>
                 </div>
             </div>
         </div>
@@ -786,7 +786,7 @@
                 </div>
                 <div class="modal-body">
                     <form id="editContactForm" method="POST">
-            @csrf
+                        @csrf
                         @method('PUT')
                         <div class="mb-3">
                             <label for="edit_name" class="form-label">Name</label>
@@ -810,7 +810,7 @@
                             </select>
                         </div>
                         <button type="submit" class="btn btn-primary w-100">Update Contact</button>
-        </form>
+                    </form>
                 </div>
             </div>
         </div>
@@ -827,21 +827,23 @@
                 <div class="modal-body">
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <h6 class="mb-0">All Categories</h6>
-                        <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addCategoryModal" data-bs-dismiss="modal">
+                        <button type="button" class="btn btn-primary btn-sm" id="addCategoryBtn">
                             <i class="bi bi-plus"></i> Add Category
                         </button>
                     </div>
                     <table class="table mb-0">
-            <thead>
-                <tr>
+                        <thead>
+                            <tr>
                                 <th>Name</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
+                                <th>Type</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
                         <tbody>
                             @foreach($categories as $category)
                             <tr>
                                 <td>{{ $category->name }}</td>
+                                <td>{{ ucfirst($category->type) }}</td>
                                 <td>
                                     <button class="btn btn-edit edit-category-btn" data-id="{{ $category->id }}" data-name="{{ $category->name }}" data-type="{{ $category->type }}">
                                         <i class="bi bi-pencil"></i> Edit
@@ -858,6 +860,8 @@
             </div>
         </div>
     </div>
+
+    @include('partials.modals.add-category')
 
     <!-- Recent Contacts Modal -->
     <div class="modal fade" id="recentContactsModal" tabindex="-1">
@@ -889,7 +893,7 @@
                             </tr>
                             @endforeach
                         </tbody>
-        </table>
+                    </table>
                 </div>
             </div>
         </div>
@@ -1102,6 +1106,26 @@
         </div>
     </div>
 
+    <!-- Delete Contact Confirmation Modal -->
+    <div class="modal fade" id="deleteContactModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Delete Contact</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Are you sure you want to delete this contact? This action cannot be undone.</p>
+                    <p class="text-danger" id="deleteContactError" style="display: none;"></p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-danger" id="confirmDeleteContact">Delete</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
@@ -1284,23 +1308,49 @@
 
             // Event delegation for delete button
             $('#contactsTable').on('click', '.delete-contact-btn', function() {
-                var id = $(this).data('id');
-                if (confirm('Are you sure you want to delete this contact?')) {
-                    $.ajax({
-                        url: `/contacts/${id}`,
-                        method: 'DELETE',
-                        headers: {
-                            'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
-                        },
-                        success: function(response) {
-                            location.reload();
-                        },
-                        error: function(xhr) {
-                            alert('Error deleting contact. Please try again.');
-                            console.error('Delete error:', xhr.responseText);
+                const contactId = $(this).data('id');
+                $('#deleteContactError').hide();
+                $('#confirmDeleteContact').data('id', contactId);
+                const deleteContactModal = new bootstrap.Modal(document.getElementById('deleteContactModal'));
+                deleteContactModal.show();
+            });
+
+            // Handle confirm delete contact button click
+            $('#confirmDeleteContact').on('click', function() {
+                const contactId = $(this).data('id');
+                const button = $(this);
+                
+                // Disable button and show loading state
+                button.prop('disabled', true).html('<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Deleting...');
+                
+                $.ajax({
+                    url: `/contacts/${contactId}`,
+                    method: 'DELETE',
+                    headers: {
+                        'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+                    },
+                    success: function(response) {
+                        const deleteContactModal = bootstrap.Modal.getInstance(document.getElementById('deleteContactModal'));
+                        deleteContactModal.hide();
+                        location.reload();
+                    },
+                    error: function(xhr) {
+                        let errorMsg = 'Error deleting contact. Please try again.';
+                        if (xhr.responseJSON && xhr.responseJSON.error) {
+                            errorMsg = xhr.responseJSON.error;
                         }
-                    });
-                }
+                        $('#deleteContactError').text(errorMsg).show();
+                        button.prop('disabled', false).text('Delete');
+                    }
+                });
+            });
+
+            // Reset error message and backdrop when modal is hidden
+            $('#deleteContactModal').on('hidden.bs.modal', function() {
+                $('#deleteContactError').hide();
+                $('#confirmDeleteContact').prop('disabled', false).text('Delete');
+                $('body').removeClass('modal-open');
+                $('.modal-backdrop').remove();
             });
 
             // Category management handlers
@@ -1337,22 +1387,47 @@
 
             $('#manageCategoriesModal').on('click', '.delete-category-btn', function() {
                 var id = $(this).data('id');
-                if (confirm('Are you sure you want to delete this category?')) {
-                    $.ajax({
-                        url: '/categories/' + id,
-                        method: 'DELETE',
-                        success: function(response) {
-                            location.reload();
-                        },
-                        error: function(xhr) {
-                            let msg = 'Error deleting category. Please try again.';
-                            if (xhr.responseJSON && xhr.responseJSON.error) {
-                                msg = xhr.responseJSON.error;
-                            }
-                            alert(msg);
+                $('#deleteCategoryError').hide();
+                $('#confirmDeleteCategory').data('id', id);
+                const deleteCategoryModal = new bootstrap.Modal(document.getElementById('deleteCategoryModal'));
+                deleteCategoryModal.show();
+            });
+
+            $('#confirmDeleteCategory').on('click', function() {
+                const categoryId = $(this).data('id');
+                const button = $(this);
+                
+                // Disable button and show loading state
+                button.prop('disabled', true).html('<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Deleting...');
+                
+                $.ajax({
+                    url: `/categories/${categoryId}`,
+                    method: 'DELETE',
+                    headers: {
+                        'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+                    },
+                    success: function(response) {
+                        const deleteCategoryModal = bootstrap.Modal.getInstance(document.getElementById('deleteCategoryModal'));
+                        deleteCategoryModal.hide();
+                        location.reload();
+                    },
+                    error: function(xhr) {
+                        let errorMsg = 'Error deleting category. Please try again.';
+                        if (xhr.responseJSON && xhr.responseJSON.error) {
+                            errorMsg = xhr.responseJSON.error;
                         }
-                    });
-                }
+                        $('#deleteCategoryError').text(errorMsg).show();
+                        button.prop('disabled', false).text('Delete');
+                    }
+                });
+            });
+
+            // Reset error message and backdrop when category delete modal is hidden
+            $('#deleteCategoryModal').on('hidden.bs.modal', function() {
+                $('#deleteCategoryError').hide();
+                $('#confirmDeleteCategory').prop('disabled', false).text('Delete');
+                $('body').removeClass('modal-open');
+                $('.modal-backdrop').remove();
             });
 
             // Profile image handlers
@@ -1466,6 +1541,15 @@
                     }
                 });
             });
+
+            // Add event listener for the cancel buttons
+            $('.btn-secondary[data-bs-dismiss="modal"]').on('click', function() {
+                const modal = $(this).closest('.modal');
+                modal.on('hidden.bs.modal', function() {
+                    $('body').removeClass('modal-open');
+                    $('.modal-backdrop').remove();
+                });
+            });
         }
 
         // Main initialization
@@ -1480,6 +1564,18 @@
             // Initialize DataTable and event handlers
             var table = initializeDataTable();
             initializeEventHandlers(table);
+
+            // Initialize all modals
+            const manageCategoriesModal = new bootstrap.Modal(document.getElementById('manageCategoriesModal'));
+            const addCategoryModal = new bootstrap.Modal(document.getElementById('addCategoryModal'));
+            const editCategoryModal = new bootstrap.Modal(document.getElementById('editCategoryModal'));
+            const deleteCategoryModal = new bootstrap.Modal(document.getElementById('deleteCategoryModal'));
+
+            // Handle Add Category button click
+            document.getElementById('addCategoryBtn').addEventListener('click', function() {
+                manageCategoriesModal.hide();
+                addCategoryModal.show();
+            });
         });
     </script>
 </body>
