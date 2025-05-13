@@ -13,6 +13,7 @@ services:
       - contactdaw
     depends_on:
       - mysql
+      - mailpit
 
   nginx:
     image: nginx:latest
@@ -50,6 +51,15 @@ services:
     environment:
       PMA_HOST: mysql
       PMA_PORT: 3306
+    networks:
+      - contactdaw
+
+  mailpit:
+    image: axllent/mailpit
+    container_name: contactdaw_mailpit
+    ports:
+      - "1025:1025" # SMTP
+      - "8025:8025" # Web UI
     networks:
       - contactdaw
 

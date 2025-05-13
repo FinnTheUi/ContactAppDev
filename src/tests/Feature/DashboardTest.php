@@ -255,7 +255,320 @@ class DashboardTest extends TestCase
 
         $response = $this->put(route('profile.update'), $invalidData);
 
+        $response->assertSessionHasErrors(['name', 'email', 'phone']);
+    }
+
+    public function test_user_cannot_create_category_with_invalid_data()
+    {
+        $this->actingAs($this->user);
+
+        $invalidData = [
+            'name' => '',
+            'description' => str_repeat('a', 1001),
+            'type' => 'invalid-type'
+        ];
+
+        $response = $this->post(route('categories.store'), $invalidData);
+
+        $response->assertSessionHasErrors(['name', 'description', 'type']);
+    }
+
+    public function test_user_cannot_update_category_with_invalid_data()
+    {
+        $this->actingAs($this->user);
+
+        $category = Category::factory()->create([
+            'user_id' => $this->user->id
+        ]);
+
+        $invalidData = [
+            'name' => '',
+            'description' => str_repeat('a', 1001),
+            'type' => 'invalid-type'
+        ];
+
+        $response = $this->put(route('categories.update', $category), $invalidData);
+
+        $response->assertSessionHasErrors(['name', 'description', 'type']);
+    }
+
+    public function test_category_name_validation()
+    {
+        $this->actingAs($this->user);
+
+        $invalidNames = [
+            '',
+            'a',
+            str_repeat('a', 256),
+        ];
+
+        foreach ($invalidNames as $name) {
+            $response = $this->post(route('categories.store'), [
+                'name' => $name,
+                'description' => 'Valid description',
+                'type' => 'personal'
+            ]);
+
+            $response->assertSessionHasErrors('name');
+        }
+    }
+
+    public function test_category_type_validation()
+    {
+        $this->actingAs($this->user);
+
+        $invalidTypes = [
+            '',
+            'invalid-type',
+            'PERSONAL',
+        ];
+
+        foreach ($invalidTypes as $type) {
+            $response = $this->post(route('categories.store'), [
+                'name' => 'Valid Name',
+                'description' => 'Valid description',
+                'type' => $type
+            ]);
+
+            $response->assertSessionHasErrors('type');
+        }
+    }
+
+    public function test_profile_update_validation()
+    {
+        $this->actingAs($this->user);
+
+        $invalidData = [
+            'name' => [
+                'value' => 'a',
+                'error' => 'name'
+            ],
+            'email' => [
+                'value' => 'invalid-email',
+                'error' => 'email'
+            ],
+            'phone' => [
+                'value' => 'invalid-phone',
+                'error' => 'phone'
+            ]
+        ];
+
+        foreach ($invalidData as $field => $data) {
+            $updateData = [
+                'name' => $this->user->name,
+                'email' => $this->user->email,
+                'phone' => $this->user->phone
+            ];
+            $updateData[$field] = $data['value'];
+
+            $response = $this->put(route('profile.update'), $updateData);
+
+            $response->assertSessionHasErrors($data['error']);
+        }
+    }
+
+    public function test_profile_update_email_uniqueness()
+    {
+        $this->actingAs($this->user);
+
+        $otherUser = User::factory()->create([
+            'email' => 'other@example.com',
+            'phone' => $this->getValidPhoneNumber(),
+        ]);
+
+        $response = $this->put(route('profile.update'), [
+            'name' => $this->user->name,
+            'email' => $otherUser->email,
+            'phone' => $this->user->phone
+        ]);
+
+        $response->assertSessionHasErrors('email');
+    }
+
+    public function test_profile_update_phone_uniqueness()
+    {
+        $this->actingAs($this->user);
+
+        $otherUser = User::factory()->create([
+            'email' => 'other@example.com',
+            'phone' => $this->getValidPhoneNumber(),
+        ]);
+
+        $response = $this->put(route('profile.update'), [
+            'name' => $this->user->name,
+            'email' => $this->user->email,
+            'phone' => $otherUser->phone
+        ]);
+
+        $response->assertSessionHasErrors('phone');
+    }
+
+    public function test_category_description_length_validation()
+    {
+        $this->actingAs($this->user);
+
+        $invalidDescriptions = [
+            str_repeat('a', 1001), // Too long
+            '', // Empty
+        ];
+
+        foreach ($invalidDescriptions as $description) {
+            $response = $this->post(route('categories.store'), [
+                'name' => 'Valid Name',
+                'description' => $description,
+                'type' => 'personal'
+            ]);
+
+            $response->assertSessionHasErrors('description');
+        }
+    }
+
+    public function test_category_name_uniqueness_per_user()
+    {
+        $this->actingAs($this->user);
+
+        // Create initial category
+        $category = Category::factory()->create([
+            'user_id' => $this->user->id,
+            'name' => 'Test Category'
+        ]);
+
+        // Try to create another category with the same name
+        $response = $this->post(route('categories.store'), [
+            'name' => $category->name,
+            'description' => 'Different description',
+            'type' => 'personal'
+        ]);
+
+        $response->assertSessionHasErrors('name');
+    }
+
+    public function test_category_name_allows_special_characters()
+    {
+        $this->actingAs($this->user);
+
+        $specialNames = [
+            'Test Category!',
+            'Category @ Work',
+            'Category #1',
+            'Category & More',
+        ];
+
+        foreach ($specialNames as $name) {
+            $response = $this->post(route('categories.store'), [
+                'name' => $name,
+                'description' => 'Valid description',
+                'type' => 'personal'
+            ]);
+
+            $response->assertStatus(302);
+            $this->assertDatabaseHas('categories', [
+                'name' => $name,
+                'user_id' => $this->user->id
+            ]);
+        }
+    }
+
+    public function test_profile_update_password_validation()
+    {
+        $this->actingAs($this->user);
+
+        $invalidPasswords = [
+            'short', // Too short
+            'onlylowercase', // No uppercase
+            'ONLYUPPERCASE', // No lowercase
+            'NoNumbers', // No numbers
+            '12345678', // No letters
+        ];
+
+        foreach ($invalidPasswords as $password) {
+            $response = $this->put(route('profile.update'), [
+                'name' => $this->user->name,
+                'email' => $this->user->email,
+                'phone' => $this->user->phone,
+                'current_password' => 'password123',
+                'password' => $password,
+                'password_confirmation' => $password
+            ]);
+
+            $response->assertSessionHasErrors('password');
+        }
+    }
+
+    public function test_profile_update_current_password_required()
+    {
+        $this->actingAs($this->user);
+
+        $response = $this->put(route('profile.update'), [
+            'name' => $this->user->name,
+            'email' => $this->user->email,
+            'phone' => $this->user->phone,
+            'password' => 'NewPassword123',
+            'password_confirmation' => 'NewPassword123'
+        ]);
+
+        $response->assertSessionHasErrors('current_password');
+    }
+
+    public function test_profile_update_current_password_validation()
+    {
+        $this->actingAs($this->user);
+
+        $response = $this->put(route('profile.update'), [
+            'name' => $this->user->name,
+            'email' => $this->user->email,
+            'phone' => $this->user->phone,
+            'current_password' => 'wrong-password',
+            'password' => 'NewPassword123',
+            'password_confirmation' => 'NewPassword123'
+        ]);
+
+        $response->assertSessionHasErrors('current_password');
+    }
+
+    public function test_category_update_requires_authentication()
+    {
+        $category = Category::factory()->create([
+            'user_id' => $this->user->id
+        ]);
+
+        $response = $this->put(route('categories.update', $category), [
+            'name' => 'Updated Name',
+            'description' => 'Updated Description',
+            'type' => 'personal'
+        ]);
+
+        $response->assertRedirect(route('login'));
+    }
+
+    public function test_category_delete_requires_authentication()
+    {
+        $category = Category::factory()->create([
+            'user_id' => $this->user->id
+        ]);
+
+        $response = $this->delete(route('categories.destroy', $category));
+
+        $response->assertRedirect(route('login'));
+    }
+
+    public function test_category_cannot_be_deleted_if_has_contacts()
+    {
+        $this->actingAs($this->user);
+
+        $category = Category::factory()->create([
+            'user_id' => $this->user->id
+        ]);
+
+        // Create a contact in this category
+        Contact::factory()->create([
+            'user_id' => $this->user->id,
+            'category_id' => $category->id
+        ]);
+
+        $response = $this->delete(route('categories.destroy', $category));
+
         $response->assertStatus(422);
-        $response->assertJsonStructure(['errors' => ['name', 'email', 'phone']]);
+        $this->assertDatabaseHas('categories', ['id' => $category->id]);
     }
 } 
