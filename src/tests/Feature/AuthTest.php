@@ -256,6 +256,9 @@ class AuthTest extends TestCase
         ];
 
         foreach ($invalidEmails as $email) {
+            // Reset the throttle for each iteration to avoid 429 errors
+            $this->withoutMiddleware(\Illuminate\Routing\Middleware\ThrottleRequests::class);
+
             $response = $this->postJson(route('login.submit'), [
                 'email' => $email,
                 'password' => 'password123',
