@@ -38,8 +38,8 @@ class AuthTest extends TestCase
             'name' => $this->faker->name,
             'email' => $this->faker->unique()->safeEmail,
             'phone' => $this->getValidPhoneNumber(),
-            'password' => 'password123',
-            'password_confirmation' => 'password123',
+            'password' => 'Password123',
+            'password_confirmation' => 'Password123',
         ];
 
         $response = $this->postJson(route('register.submit'), $userData);
@@ -127,7 +127,7 @@ class AuthTest extends TestCase
         $response = $this->getJson(route('dashboard'));
 
         $response->assertStatus(401)
-                ->assertJson(['message' => 'Unauthenticated']);
+                ->assertJson(['message' => 'Unauthenticated.']);
     }
 
     public function test_registration_validation()
@@ -173,8 +173,11 @@ class AuthTest extends TestCase
             'short', // Too short
             'onlylowercase', // No uppercase
             'ONLYUPPERCASE', // No lowercase
-            'NoNumbers', // No numbers
+            'NoSpecial', // No numbers
             '12345678', // No letters
+            'password', // No uppercase or numbers
+            'PASSWORD', // No lowercase or numbers
+            '123456789', // No letters
         ];
 
         foreach ($invalidPasswords as $password) {
@@ -207,8 +210,8 @@ class AuthTest extends TestCase
                 'name' => $this->faker->name,
                 'email' => $email,
                 'phone' => $this->getValidPhoneNumber(),
-                'password' => 'password123',
-                'password_confirmation' => 'password123',
+                'password' => 'Password123', // Valid password that matches our regex
+                'password_confirmation' => 'Password123',
             ]);
 
             $response->assertStatus(422)

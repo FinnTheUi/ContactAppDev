@@ -123,7 +123,7 @@ class ProfileController extends Controller
      */
     private function validateProfileData(Request $request, $user)
     {
-        $baseRules = [
+        $rules = [
             'name' => ['required', 'string', 'min:2', 'max:255', 'regex:/^[A-Za-z\s]+$/'],
             'email' => [
                 'required',
