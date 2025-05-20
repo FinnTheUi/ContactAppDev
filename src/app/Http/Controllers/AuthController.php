@@ -31,17 +31,10 @@ class AuthController extends Controller
     public function register(Request $request)
     {
         try {
-            $email = $request->input('email');
-            if (!$this->validateEmail($email)) {
-                throw ValidationException::withMessages([
-                    'email' => ['Please enter a valid email address.']
-                ]);
-            }
-
-            // Validate the request data first, before starting transaction
-            $validated = $request->validate([
+            // Validate all fields at once
+            $validator = validator($request->all(), [
                 'name' => ['required', 'string', 'min:2', 'max:255'],
-                'email' => ['required', 'string', 'email:rfc', 'max:255', 'unique:users,email'],
+                'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
                 'phone' => ['required', 'regex:/^(\+63|09)\d{9}$/', 'unique:users,phone'],
                 'password' => ['required', 'string', 'min:8', 'confirmed', 'regex:/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/'],
             ], [
@@ -49,17 +42,28 @@ class AuthController extends Controller
                 'name.max' => 'Your name cannot exceed 255 characters.',
                 'email.required' => 'Please enter your email address.',
                 'email.email' => 'Please enter a valid email address.',
-                'email.unique' => 'This email is already registered. Please use a different email or try logging in.',
+                'email.unique' => 'This email is already registered.',
                 'phone.required' => 'Please enter your phone number.',
                 'phone.regex' => 'Please enter a valid Philippine mobile number starting with 09 or +63.',
-                'phone.unique' => 'This phone number is already registered. Please use a different number or try logging in.',
+                'phone.unique' => 'This phone number is already registered.',
                 'password.required' => 'Please enter a password.',
                 'password.min' => 'Your password must be at least 8 characters long.',
                 'password.confirmed' => 'The password confirmation does not match.',
             ]);
 
+            // Custom email validation
+            if ($request->filled('email') && !$this->validateEmail($request->input('email'))) {
+                $validator->errors()->add('email', 'Please enter a valid email address.');
+            }
+
+            if ($validator->fails()) {
+                throw new ValidationException($validator);
+            }
+
+            $validated = $validator->validated();
+
             DB::beginTransaction();
-            
+
             // Create the user
             $user = User::create([
                 'name' => $validated['name'],
@@ -151,14 +155,8 @@ class AuthController extends Controller
     public function login(Request $request)
     {
         try {
-            $email = $request->input('email');
-            if (!$this->validateEmail($email)) {
-                throw ValidationException::withMessages([
-                    'email' => ['Please enter a valid email address.']
-                ]);
-            }
-
-            $validated = $request->validate([
+            // Validate all fields at once
+            $validator = validator($request->all(), [
                 'email' => 'required|email',
                 'password' => 'required',
             ], [
@@ -166,6 +164,40 @@ class AuthController extends Controller
                 'email.email' => 'Please enter a valid email address.',
                 'password.required' => 'Please enter your password.',
             ]);
+
+            // Custom email validation
+            if ($request->filled('email') && !$this->validateEmail($request->input('email'))) {
+                $validator->errors()->add('email', 'Please enter a valid email address.');
+            }
+
+            if ($validator->fails()) {
+                throw new ValidationException($validator);
+            }
+
+            $validated = $validator->validated();
+
+            $credentials = $request->only('email', 'password');
+            if (Auth::attempt($credentials, $request->filled('remember'))) {
+                $request->session()->regenerate();
+                
+                if ($request->expectsJson()) {
+                    return response()->json([
+                        'message' => 'Login successful',
+                        'user' => Auth::user()
+                    ]);
+                }
+                
+                return redirect()->intended('dashboard');
+            }
+            
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => 'Invalid credentials'
+                ], 401);
+            }
+            
+            return back()->withErrors(['email' => 'Invalid email or password.'])->withInput();
+
         } catch (ValidationException $e) {
             if ($request->expectsJson()) {
                 return response()->json([
@@ -175,26 +207,6 @@ class AuthController extends Controller
             }
             throw $e;
         }
-
-        $credentials = $request->only('email', 'password');
-        if (Auth::attempt($credentials, $request->filled('remember'))) {
-            $request->session()->regenerate();
-            
-            if ($request->expectsJson()) {
-                return response()->json([
-                    'message' => 'Login successful',
-                    'user' => Auth::user()
-                ]);
-            }
-            
-            return redirect()->intended('dashboard');
-        }            if ($request->expectsJson()) {
-                return response()->json([
-                    'message' => 'Invalid credentials'
-                ], 401);
-            }
-        
-        return back()->withErrors(['email' => 'Invalid email or password.'])->withInput();
     }
 
     /**
