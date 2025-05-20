@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Contact Manager - Home</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/animate.css@4.1.1/animate.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <style>
@@ -25,6 +26,11 @@
             width: 100%;
             top: 0;
             z-index: 1000;
+            transition: background 0.3s ease, box-shadow 0.3s ease;
+        }
+        .navbar.scrolled {
+            background: #fff;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
         }
         .navbar-brand {
             font-weight: 700;
@@ -47,20 +53,7 @@
         }
         .nav-link:hover {
             color: #2D6CDF;
-        }
-        .nav-link::after {
-            content: '';
-            position: absolute;
-            width: 0;
-            height: 2px;
-            bottom: 0;
-            left: 50%;
-            background-color: #2D6CDF;
-            transition: all 0.3s ease;
-            transform: translateX(-50%);
-        }
-        .nav-link:hover::after {
-            width: 80%;
+            background-color: rgba(45, 108, 223, 0.1);
         }
         .btn-primary {
             background: #2D6CDF;
@@ -78,8 +71,10 @@
             transform: translateY(-2px);
             box-shadow: 0 4px 12px rgba(45, 108, 223, 0.2);
         }
-        .btn-primary:active {
-            transform: translateY(0);
+        .btn-light:hover {
+            background-color: #fff !important;
+            color: #1A4FA0 !important;
+            box-shadow: 0 4px 12px rgba(255, 255, 255, 0.3);
         }
         .hero-section {
             padding: 8rem 0 6rem;
@@ -103,7 +98,6 @@
             font-size: 3.5rem;
             margin-bottom: 1.5rem;
             line-height: 1.2;
-            animation: fadeInUp 0.8s ease;
         }
         .hero-subtitle {
             color: #64748B;
@@ -113,7 +107,6 @@
             margin-left: auto;
             margin-right: auto;
             line-height: 1.6;
-            animation: fadeInUp 1s ease;
         }
         .features-section {
             padding: 6rem 0;
@@ -136,6 +129,10 @@
             font-size: 2.5rem;
             color: #2D6CDF;
             margin-bottom: 1.5rem;
+            transition: transform 0.3s ease;
+        }
+        .feature-card:hover .feature-icon {
+            transform: rotate(6deg) scale(1.2);
         }
         .feature-title {
             font-weight: 600;
@@ -208,16 +205,6 @@
             text-align: center;
             color: rgba(255, 255, 255, 0.5);
         }
-        @keyframes fadeInUp {
-            from {
-                opacity: 0;
-                transform: translateY(20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
         @media (max-width: 768px) {
             .hero-title {
                 font-size: 2.5rem;
@@ -261,7 +248,7 @@
     </nav>
 
     <section class="hero-section">
-        <div class="container">
+        <div class="container animate__animated animate__fadeInUp">
             <h1 class="hero-title">Manage Your Contacts with Ease</h1>
             <p class="hero-subtitle">A powerful contact management system designed for professionals. Organize, categorize, and access your contacts anytime, anywhere.</p>
             <a href="{{ route('register') }}" class="btn btn-primary btn-lg">Get Started</a>
@@ -271,21 +258,21 @@
     <section class="features-section">
         <div class="container">
             <div class="row">
-                <div class="col-md-4">
+                <div class="col-md-4 animate__animated animate__fadeInUp animate__delay-1s">
                     <div class="feature-card">
                         <i class="bi bi-diagram-3 feature-icon"></i>
                         <h3 class="feature-title">Smart Organization</h3>
                         <p class="feature-text">Categorize your contacts and keep them organized with our intuitive category system.</p>
                     </div>
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-4 animate__animated animate__fadeInUp animate__delay-2s">
                     <div class="feature-card">
                         <i class="bi bi-phone feature-icon"></i>
                         <h3 class="feature-title">Easy Access</h3>
                         <p class="feature-text">Access your contacts from any device with our responsive web interface.</p>
                     </div>
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-4 animate__animated animate__fadeInUp animate__delay-3s">
                     <div class="feature-card">
                         <i class="bi bi-shield-check feature-icon"></i>
                         <h3 class="feature-title">Secure Storage</h3>
@@ -297,7 +284,7 @@
     </section>
 
     <section class="cta-section">
-        <div class="container">
+        <div class="container animate__animated animate__fadeInUp">
             <h2 class="cta-title">Ready to Get Started?</h2>
             <p class="cta-text">Join thousands of professionals who trust Contact Manager for their contact management needs.</p>
             <a href="{{ route('register') }}" class="btn btn-light btn-lg">Create Free Account</a>
@@ -315,8 +302,6 @@
                     <h3 class="footer-title">Quick Links</h3>
                     <a href="{{ route('login') }}" class="footer-link">Login</a>
                     <a href="{{ route('register') }}" class="footer-link">Register</a>
-                    <a href="#" class="footer-link">Features</a>
-                    <a href="#" class="footer-link">Pricing</a>
                 </div>
                 <div class="col-md-4">
                     <h3 class="footer-title">Contact Us</h3>
@@ -331,5 +316,15 @@
     </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        window.addEventListener('scroll', function () {
+            const navbar = document.querySelector('.navbar');
+            if (window.scrollY > 50) {
+                navbar.classList.add('scrolled');
+            } else {
+                navbar.classList.remove('scrolled');
+            }
+        });
+    </script>
 </body>
 </html>

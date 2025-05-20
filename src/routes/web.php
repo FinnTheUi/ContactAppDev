@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\ContactController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ProfileController;
@@ -97,11 +98,10 @@ Route::middleware('auth')->group(function () {
     |--------------------------------------------------------------------------
     */
     Route::prefix('categories')->name('categories.')->group(function () {
-        Route::get('/', [ContactController::class, 'indexCategories'])->name('index');
-        Route::get('/create', [ContactController::class, 'createCategory'])->name('create');
-        Route::post('/', [ContactController::class, 'storeCategory'])->name('store');
-        Route::delete('/{category}', [ContactController::class, 'destroyCategory'])->name('destroy');
-        Route::put('/{category}', [ContactController::class, 'updateCategory'])->name('update');
+        Route::post('/', [CategoryController::class, 'store'])->name('store');
+        Route::put('/{category}', [CategoryController::class, 'update'])->name('update');
+        Route::delete('/{category}', [CategoryController::class, 'destroy'])->name('destroy');
+        Route::get('/', [CategoryController::class, 'index'])->name('index');
     });
 
     /*

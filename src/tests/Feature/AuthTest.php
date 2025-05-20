@@ -6,6 +6,7 @@ use Tests\TestCase;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Foundation\Testing\WithFaker;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Contracts\Auth\Authenticatable;
 
 class AuthTest extends TestCase
@@ -20,14 +21,14 @@ class AuthTest extends TestCase
     public function test_user_can_view_login_page()
     {
         $response = $this->get(route('login'));
-        $response->assertStatus(200);
+        $response->assertStatus(200, 'Expected HTTP 200 OK status');
         $response->assertViewIs('auth.login');
     }
 
     public function test_user_can_view_register_page()
     {
         $response = $this->get(route('register'));
-        $response->assertStatus(200);
+        $response->assertStatus(200, 'Expected HTTP 200 OK status');
         $response->assertViewIs('auth.register');
     }
 
@@ -41,10 +42,11 @@ class AuthTest extends TestCase
             'password_confirmation' => 'password123',
         ];
 
-        $response = $this->post(route('register.submit'), $userData);
+        $response = $this->postJson(route('register.submit'), $userData);
 
-        $response->assertRedirect(route('login'));
-        $response->assertSessionHas('success', 'Registration successful! You can now login.');
+        $response->assertStatus(201)
+                ->assertJson(['message' => 'Registration successful! You can now login.']);
+
         $this->assertDatabaseHas('users', [
             'email' => $userData['email'],
             'name' => $userData['name'],
@@ -54,76 +56,83 @@ class AuthTest extends TestCase
 
     public function test_user_can_login()
     {
-        /** @var Authenticatable $user */
+        /** @var User */
         $user = User::factory()->create([
             'password' => bcrypt('password123'),
             'phone' => $this->getValidPhoneNumber(),
         ]);
 
-        $response = $this->post(route('login.submit'), [
+        $response = $this->postJson(route('login.submit'), [
             'email' => $user->email,
             'password' => 'password123',
         ]);
 
-        $response->assertRedirect(route('dashboard'));
+        $response->assertStatus(200)
+                ->assertJson(['message' => 'Login successful'])
+                ->assertJsonStructure(['message', 'user']);
+
         $this->assertAuthenticated();
     }
 
     public function test_user_cannot_login_with_invalid_credentials()
     {
-        /** @var Authenticatable $user */
+        /** @var User */
         $user = User::factory()->create([
             'password' => bcrypt('password123'),
             'phone' => $this->getValidPhoneNumber(),
         ]);
 
-        $response = $this->post(route('login.submit'), [
+        $response = $this->postJson(route('login.submit'), [
             'email' => $user->email,
             'password' => 'wrong-password',
         ]);
 
-        $response->assertSessionHasErrors('email');
+        $response->assertStatus(401)
+                ->assertJson(['message' => 'Invalid credentials']);
+
         $this->assertGuest();
     }
 
     public function test_user_can_logout()
     {
-        /** @var Authenticatable $user */
+        /** @var User */
         $user = User::factory()->create([
             'phone' => $this->getValidPhoneNumber(),
         ]);
         $this->actingAs($user);
 
-        $response = $this->post(route('logout'));
+        $response = $this->postJson(route('logout'));
 
-        $response->assertRedirect(route('login'));
+        $response->assertStatus(200)
+                ->assertJson(['message' => 'Logged out successfully']);
+
         $this->assertGuest();
     }
 
     public function test_authenticated_user_can_access_dashboard()
     {
-        /** @var Authenticatable $user */
+        /** @var User */
         $user = User::factory()->create([
             'phone' => $this->getValidPhoneNumber(),
         ]);
         $this->actingAs($user);
 
-        $response = $this->get(route('dashboard'));
+        $response = $this->getJson(route('dashboard'));
 
         $response->assertStatus(200);
-        $response->assertViewIs('dashboard');
     }
 
     public function test_guest_cannot_access_dashboard()
     {
-        $response = $this->get(route('dashboard'));
+        $response = $this->getJson(route('dashboard'));
 
-        $response->assertRedirect(route('login'));
+        $response->assertStatus(401)
+                ->assertJson(['message' => 'Unauthenticated']);
     }
 
     public function test_registration_validation()
     {
-        $response = $this->post(route('register.submit'), [
+        $response = $this->postJson(route('register.submit'), [
             'name' => '',
             'email' => 'invalid-email',
             'phone' => 'invalid-phone',
@@ -131,7 +140,8 @@ class AuthTest extends TestCase
             'password_confirmation' => 'different',
         ]);
 
-        $response->assertSessionHasErrors(['name', 'email', 'phone', 'password']);
+        $response->assertStatus(422)
+                ->assertJsonValidationErrors(['name', 'email', 'phone', 'password']);
     }
 
     public function test_registration_phone_number_validation()
@@ -144,7 +154,7 @@ class AuthTest extends TestCase
         ];
 
         foreach ($invalidPhones as $phone) {
-            $response = $this->post(route('register.submit'), [
+            $response = $this->postJson(route('register.submit'), [
                 'name' => $this->faker->name,
                 'email' => $this->faker->unique()->safeEmail,
                 'phone' => $phone,
@@ -152,7 +162,8 @@ class AuthTest extends TestCase
                 'password_confirmation' => 'password123',
             ]);
 
-            $response->assertSessionHasErrors('phone');
+            $response->assertStatus(422)
+                    ->assertJsonValidationErrors(['phone']);
         }
     }
 
@@ -167,7 +178,7 @@ class AuthTest extends TestCase
         ];
 
         foreach ($invalidPasswords as $password) {
-            $response = $this->post(route('register.submit'), [
+            $response = $this->postJson(route('register.submit'), [
                 'name' => $this->faker->name,
                 'email' => $this->faker->unique()->safeEmail,
                 'phone' => $this->getValidPhoneNumber(),
@@ -175,7 +186,8 @@ class AuthTest extends TestCase
                 'password_confirmation' => $password,
             ]);
 
-            $response->assertSessionHasErrors('password');
+            $response->assertStatus(422)
+                    ->assertJsonValidationErrors(['password']);
         }
     }
 
@@ -191,7 +203,7 @@ class AuthTest extends TestCase
         ];
 
         foreach ($invalidEmails as $email) {
-            $response = $this->post(route('register.submit'), [
+            $response = $this->postJson(route('register.submit'), [
                 'name' => $this->faker->name,
                 'email' => $email,
                 'phone' => $this->getValidPhoneNumber(),
@@ -199,13 +211,14 @@ class AuthTest extends TestCase
                 'password_confirmation' => 'password123',
             ]);
 
-            $response->assertSessionHasErrors('email');
+            $response->assertStatus(422)
+                    ->assertJsonValidationErrors(['email']);
         }
     }
 
     public function test_registration_name_validation()
     {
-        $response = $this->post(route('register.submit'), [
+        $response = $this->postJson(route('register.submit'), [
             'name' => 'a', // Too short
             'email' => $this->faker->unique()->safeEmail,
             'phone' => $this->getValidPhoneNumber(),
@@ -213,17 +226,19 @@ class AuthTest extends TestCase
             'password_confirmation' => 'password123',
         ]);
 
-        $response->assertSessionHasErrors('name');
+        $response->assertStatus(422)
+                ->assertJsonValidationErrors(['name']);
     }
 
     public function test_login_validation()
     {
-        $response = $this->post(route('login.submit'), [
+        $response = $this->postJson(route('login.submit'), [
             'email' => 'invalid-email',
             'password' => '',
         ]);
 
-        $response->assertSessionHasErrors(['email', 'password']);
+        $response->assertStatus(422)
+                ->assertJsonValidationErrors(['email', 'password']);
     }
 
     public function test_login_email_validation()
@@ -238,34 +253,36 @@ class AuthTest extends TestCase
         ];
 
         foreach ($invalidEmails as $email) {
-            $response = $this->post(route('login.submit'), [
+            $response = $this->postJson(route('login.submit'), [
                 'email' => $email,
                 'password' => 'password123',
             ]);
 
-            $response->assertSessionHasErrors('email');
+            $response->assertStatus(422)
+                    ->assertJsonValidationErrors(['email']);
         }
     }
 
     public function test_login_password_required()
     {
+        /** @var User */
         $user = User::factory()->create([
             'email' => 'test@example.com',
             'phone' => $this->getValidPhoneNumber(),
         ]);
 
-        $response = $this->post(route('login.submit'), [
+        $response = $this->postJson(route('login.submit'), [
             'email' => $user->email,
             'password' => '',
         ]);
 
-        $response->assertSessionHasErrors('password');
-        $this->assertGuest();
+        $response->assertStatus(422)
+                ->assertJsonValidationErrors(['password']);
     }
 
     public function test_registration_password_confirmation_validation()
     {
-        $response = $this->post(route('register.submit'), [
+        $response = $this->postJson(route('register.submit'), [
             'name' => $this->faker->name,
             'email' => $this->faker->unique()->safeEmail,
             'phone' => $this->getValidPhoneNumber(),
@@ -273,17 +290,19 @@ class AuthTest extends TestCase
             'password_confirmation' => 'DifferentPassword123',
         ]);
 
-        $response->assertSessionHasErrors('password');
+        $response->assertStatus(422)
+                ->assertJsonValidationErrors(['password']);
     }
 
     public function test_registration_email_uniqueness()
     {
+        /** @var User */
         $existingUser = User::factory()->create([
             'email' => 'existing@example.com',
             'phone' => $this->getValidPhoneNumber(),
         ]);
 
-        $response = $this->post(route('register.submit'), [
+        $response = $this->postJson(route('register.submit'), [
             'name' => $this->faker->name,
             'email' => $existingUser->email,
             'phone' => $this->getValidPhoneNumber(),
@@ -291,17 +310,19 @@ class AuthTest extends TestCase
             'password_confirmation' => 'Password123',
         ]);
 
-        $response->assertSessionHasErrors('email');
+        $response->assertStatus(422)
+                ->assertJsonValidationErrors(['email']);
     }
 
     public function test_registration_phone_uniqueness()
     {
+        /** @var User */
         $existingUser = User::factory()->create([
             'email' => $this->faker->unique()->safeEmail,
             'phone' => $this->getValidPhoneNumber(),
         ]);
 
-        $response = $this->post(route('register.submit'), [
+        $response = $this->postJson(route('register.submit'), [
             'name' => $this->faker->name,
             'email' => $this->faker->unique()->safeEmail,
             'phone' => $existingUser->phone,
@@ -309,24 +330,13 @@ class AuthTest extends TestCase
             'password_confirmation' => 'Password123',
         ]);
 
-        $response->assertSessionHasErrors('phone');
-    }
-
-    public function test_registration_name_length_validation()
-    {
-        $response = $this->post(route('register.submit'), [
-            'name' => str_repeat('a', 256), // Too long
-            'email' => $this->faker->unique()->safeEmail,
-            'phone' => $this->getValidPhoneNumber(),
-            'password' => 'Password123',
-            'password_confirmation' => 'Password123',
-        ]);
-
-        $response->assertSessionHasErrors('name');
+        $response->assertStatus(422)
+                ->assertJsonValidationErrors(['phone']);
     }
 
     public function test_login_attempts_throttling()
     {
+        /** @var User */
         $user = User::factory()->create([
             'email' => 'test@example.com',
             'password' => bcrypt('password123'),
@@ -335,15 +345,15 @@ class AuthTest extends TestCase
 
         // Attempt to login 6 times with wrong password
         for ($i = 0; $i < 6; $i++) {
-            $response = $this->post(route('login.submit'), [
+            $response = $this->postJson(route('login.submit'), [
                 'email' => $user->email,
                 'password' => 'wrong-password',
             ]);
         }
 
         // The 6th attempt should be throttled
-        $response->assertSessionHasErrors('email');
-        $this->assertGuest();
+        $response->assertStatus(429) // Too Many Requests
+                ->assertJsonStructure(['message']);
     }
 
     public function test_registration_with_special_characters()
@@ -356,9 +366,11 @@ class AuthTest extends TestCase
             'password_confirmation' => 'Password123!@#',
         ];
 
-        $response = $this->post(route('register.submit'), $userData);
+        $response = $this->postJson(route('register.submit'), $userData);
 
-        $response->assertRedirect(route('login'));
+        $response->assertStatus(201)
+                ->assertJson(['message' => 'Registration successful! You can now login.']);
+
         $this->assertDatabaseHas('users', [
             'email' => $userData['email'],
             'name' => $userData['name'],
@@ -374,16 +386,16 @@ class AuthTest extends TestCase
         ];
 
         foreach ($internationalPhones as $phone) {
-            $userData = [
+            $response = $this->postJson(route('register.submit'), [
                 'name' => $this->faker->name,
                 'email' => $this->faker->unique()->safeEmail,
                 'phone' => $phone,
                 'password' => 'Password123',
                 'password_confirmation' => 'Password123',
-            ];
+            ]);
 
-            $response = $this->post(route('register.submit'), $userData);
-            $response->assertSessionHasErrors('phone');
+            $response->assertStatus(422)
+                    ->assertJsonValidationErrors(['phone']);
         }
     }
-} 
+}

@@ -67,6 +67,12 @@ class AuthController extends Controller
 
             DB::commit();
 
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => 'Registration successful! You can now login.'
+                ], 201);
+            }
+
             return redirect()->route('login')
                 ->with('success', 'Registration successful! You can now login.');
 
@@ -78,6 +84,12 @@ class AuthController extends Controller
             DB::rollBack();
             Log::error('Registration failed: ' . $e->getMessage());
             Log::error('Stack trace: ' . $e->getTraceAsString());
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => 'Registration failed: ' . $e->getMessage()
+                ], 500);
+            }
             
             return back()
                 ->withInput()
@@ -92,21 +104,46 @@ class AuthController extends Controller
      */
     public function login(Request $request)
     {
-        $request->validate([
-            'email' => 'required|email',
-            'password' => 'required',
-        ], [
-            'email.required' => 'Please enter your email address.',
-            'email.email' => 'Please enter a valid email address.',
-            'password.required' => 'Please enter your password.',
-        ]);
+        try {
+            $request->validate([
+                'email' => 'required|email',
+                'password' => 'required',
+            ], [
+                'email.required' => 'Please enter your email address.',
+                'email.email' => 'Please enter a valid email address.',
+                'password.required' => 'Please enter your password.',
+            ]);
 
-        $credentials = $request->only('email', 'password');
-        if (Auth::attempt($credentials, $request->filled('remember'))) {
-            $request->session()->regenerate();
-            return redirect()->intended('dashboard');
+            $credentials = $request->only('email', 'password');
+            if (Auth::attempt($credentials, $request->filled('remember'))) {
+                $request->session()->regenerate();
+                
+                if ($request->expectsJson()) {
+                    return response()->json([
+                        'message' => 'Login successful',
+                        'user' => Auth::user()
+                    ]);
+                }
+                
+                return redirect()->intended('dashboard');
+            }
+            
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => 'Invalid credentials'
+                ], 401);
+            }
+            
+            return back()->withErrors(['email' => 'Invalid email or password.'])->withInput();
+        } catch (ValidationException $e) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => 'Validation failed',
+                    'errors' => $e->errors()
+                ], 422);
+            }
+            throw $e;
         }
-        return back()->withErrors(['email' => 'Invalid email or password.'])->withInput();
     }
 
     /**
@@ -122,6 +159,12 @@ class AuthController extends Controller
 
         // Regenerate the CSRF token
         $request->session()->regenerateToken();
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'message' => 'Logged out successfully'
+            ]);
+        }
 
         // Redirect to the login page with a success message
         return redirect('/login')->with('success', 'You have been logged out successfully.');

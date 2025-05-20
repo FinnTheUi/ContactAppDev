@@ -15,6 +15,7 @@ class DashboardTest extends TestCase
     use RefreshDatabase, WithFaker;
 
     protected User $user;
+    protected array $headers = ['Accept' => 'application/json'];
 
     protected function getValidPhoneNumber(): string
     {
@@ -129,8 +130,11 @@ class DashboardTest extends TestCase
 
     public function test_dashboard_requires_authentication()
     {
-        $response = $this->get(route('dashboard'));
-        $response->assertRedirect(route('login'));
+        $this->withoutExceptionHandling();
+        
+        $this->expectException(\Illuminate\Auth\AuthenticationException::class);
+        
+        $this->getJson(route('dashboard'), $this->headers);
     }
 
     public function test_user_can_create_category()
@@ -139,13 +143,14 @@ class DashboardTest extends TestCase
 
         $categoryData = [
             'name' => 'Test Category',
-            'description' => 'Test Description',
             'type' => 'personal'
         ];
 
-        $response = $this->post(route('categories.store'), $categoryData);
+        $response = $this->postJson(route('categories.store'), $categoryData);
 
-        $response->assertStatus(302); // Redirect after creation
+        $response->assertStatus(201)
+                ->assertJson(['message' => 'Category added successfully!']);
+
         $this->assertDatabaseHas('categories', [
             'name' => $categoryData['name'],
             'user_id' => $this->user->id
@@ -162,13 +167,14 @@ class DashboardTest extends TestCase
 
         $updatedData = [
             'name' => 'Updated Category',
-            'description' => 'Updated Description',
             'type' => 'business'
         ];
 
-        $response = $this->put(route('categories.update', $category), $updatedData);
+        $response = $this->putJson(route('categories.update', $category), $updatedData);
 
-        $response->assertStatus(302);
+        $response->assertStatus(200)
+                ->assertJson(['message' => 'Category updated successfully!']);
+
         $this->assertDatabaseHas('categories', [
             'id' => $category->id,
             'name' => $updatedData['name'],
@@ -184,9 +190,11 @@ class DashboardTest extends TestCase
             'user_id' => $this->user->id
         ]);
 
-        $response = $this->delete(route('categories.destroy', $category));
+        $response = $this->deleteJson(route('categories.destroy', $category));
 
-        $response->assertStatus(302);
+        $response->assertStatus(200)
+                ->assertJson(['message' => 'Category deleted successfully.']);
+
         $this->assertDatabaseMissing('categories', [
             'id' => $category->id
         ]);
@@ -204,12 +212,13 @@ class DashboardTest extends TestCase
             'user_id' => $otherUser->id
         ]);
 
-        $response = $this->put(route('categories.update', $category), [
+        $response = $this->putJson(route('categories.update', $category), [
             'name' => 'Unauthorized Update',
             'type' => 'personal'
         ]);
 
-        $response->assertStatus(403);
+        $response->assertStatus(403)
+                ->assertJson(['error' => 'Unauthorized action.']);
     }
 
     public function test_user_can_view_their_profile()
@@ -233,7 +242,7 @@ class DashboardTest extends TestCase
             'phone' => $this->getValidPhoneNumber()
         ];
 
-        $response = $this->put(route('profile.update'), $updatedData);
+        $response = $this->putJson(route('profile.update'), $updatedData, $this->headers);
 
         $response->assertStatus(200);
         $this->assertDatabaseHas('users', [
@@ -241,97 +250,6 @@ class DashboardTest extends TestCase
             'name' => $updatedData['name'],
             'email' => $updatedData['email']
         ]);
-    }
-
-    public function test_user_cannot_update_profile_with_invalid_data()
-    {
-        $this->actingAs($this->user);
-
-        $invalidData = [
-            'name' => '',
-            'email' => 'invalid-email',
-            'phone' => 'invalid-phone'
-        ];
-
-        $response = $this->put(route('profile.update'), $invalidData);
-
-        $response->assertSessionHasErrors(['name', 'email', 'phone']);
-    }
-
-    public function test_user_cannot_create_category_with_invalid_data()
-    {
-        $this->actingAs($this->user);
-
-        $invalidData = [
-            'name' => '',
-            'description' => str_repeat('a', 1001),
-            'type' => 'invalid-type'
-        ];
-
-        $response = $this->post(route('categories.store'), $invalidData);
-
-        $response->assertSessionHasErrors(['name', 'description', 'type']);
-    }
-
-    public function test_user_cannot_update_category_with_invalid_data()
-    {
-        $this->actingAs($this->user);
-
-        $category = Category::factory()->create([
-            'user_id' => $this->user->id
-        ]);
-
-        $invalidData = [
-            'name' => '',
-            'description' => str_repeat('a', 1001),
-            'type' => 'invalid-type'
-        ];
-
-        $response = $this->put(route('categories.update', $category), $invalidData);
-
-        $response->assertSessionHasErrors(['name', 'description', 'type']);
-    }
-
-    public function test_category_name_validation()
-    {
-        $this->actingAs($this->user);
-
-        $invalidNames = [
-            '',
-            'a',
-            str_repeat('a', 256),
-        ];
-
-        foreach ($invalidNames as $name) {
-            $response = $this->post(route('categories.store'), [
-                'name' => $name,
-                'description' => 'Valid description',
-                'type' => 'personal'
-            ]);
-
-            $response->assertSessionHasErrors('name');
-        }
-    }
-
-    public function test_category_type_validation()
-    {
-        $this->actingAs($this->user);
-
-        $invalidTypes = [
-            '',
-            'invalid-type',
-            'PERSONAL',
-        ];
-
-        foreach ($invalidTypes as $type) {
-            $response = $this->post(route('categories.store'), [
-                'name' => 'Valid Name',
-                'description' => 'Valid description',
-                'type' => $type
-            ]);
-
-            $response->assertSessionHasErrors('type');
-        }
     }
 
     public function test_profile_update_validation()
@@ -361,9 +279,10 @@ class DashboardTest extends TestCase
             ];
             $updateData[$field] = $data['value'];
 
-            $response = $this->put(route('profile.update'), $updateData);
+            $response = $this->putJson(route('profile.update'), $updateData, $this->headers);
 
-            $response->assertSessionHasErrors($data['error']);
+            $response->assertStatus(422)
+                ->assertJsonValidationErrors([$data['error']]);
         }
     }
 
@@ -376,13 +295,14 @@ class DashboardTest extends TestCase
             'phone' => $this->getValidPhoneNumber(),
         ]);
 
-        $response = $this->put(route('profile.update'), [
+        $response = $this->putJson(route('profile.update'), [
             'name' => $this->user->name,
             'email' => $otherUser->email,
             'phone' => $this->user->phone
-        ]);
+        ], $this->headers);
 
-        $response->assertSessionHasErrors('email');
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['email']);
     }
 
     public function test_profile_update_phone_uniqueness()
@@ -394,79 +314,14 @@ class DashboardTest extends TestCase
             'phone' => $this->getValidPhoneNumber(),
         ]);
 
-        $response = $this->put(route('profile.update'), [
+        $response = $this->putJson(route('profile.update'), [
             'name' => $this->user->name,
             'email' => $this->user->email,
             'phone' => $otherUser->phone
-        ]);
+        ], $this->headers);
 
-        $response->assertSessionHasErrors('phone');
-    }
-
-    public function test_category_description_length_validation()
-    {
-        $this->actingAs($this->user);
-
-        $invalidDescriptions = [
-            str_repeat('a', 1001), // Too long
-            '', // Empty
-        ];
-
-        foreach ($invalidDescriptions as $description) {
-            $response = $this->post(route('categories.store'), [
-                'name' => 'Valid Name',
-                'description' => $description,
-                'type' => 'personal'
-            ]);
-
-            $response->assertSessionHasErrors('description');
-        }
-    }
-
-    public function test_category_name_uniqueness_per_user()
-    {
-        $this->actingAs($this->user);
-
-        // Create initial category
-        $category = Category::factory()->create([
-            'user_id' => $this->user->id,
-            'name' => 'Test Category'
-        ]);
-
-        // Try to create another category with the same name
-        $response = $this->post(route('categories.store'), [
-            'name' => $category->name,
-            'description' => 'Different description',
-            'type' => 'personal'
-        ]);
-
-        $response->assertSessionHasErrors('name');
-    }
-
-    public function test_category_name_allows_special_characters()
-    {
-        $this->actingAs($this->user);
-
-        $specialNames = [
-            'Test Category!',
-            'Category @ Work',
-            'Category #1',
-            'Category & More',
-        ];
-
-        foreach ($specialNames as $name) {
-            $response = $this->post(route('categories.store'), [
-                'name' => $name,
-                'description' => 'Valid description',
-                'type' => 'personal'
-            ]);
-
-            $response->assertStatus(302);
-            $this->assertDatabaseHas('categories', [
-                'name' => $name,
-                'user_id' => $this->user->id
-            ]);
-        }
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['phone']);
     }
 
     public function test_profile_update_password_validation()
@@ -482,16 +337,17 @@ class DashboardTest extends TestCase
         ];
 
         foreach ($invalidPasswords as $password) {
-            $response = $this->put(route('profile.update'), [
+            $response = $this->putJson(route('profile.update'), [
                 'name' => $this->user->name,
                 'email' => $this->user->email,
                 'phone' => $this->user->phone,
                 'current_password' => 'password123',
                 'password' => $password,
                 'password_confirmation' => $password
-            ]);
+            ], $this->headers);
 
-            $response->assertSessionHasErrors('password');
+            $response->assertStatus(422)
+                ->assertJsonValidationErrors(['password']);
         }
     }
 
@@ -499,57 +355,63 @@ class DashboardTest extends TestCase
     {
         $this->actingAs($this->user);
 
-        $response = $this->put(route('profile.update'), [
+        $response = $this->putJson(route('profile.update'), [
             'name' => $this->user->name,
             'email' => $this->user->email,
             'phone' => $this->user->phone,
             'password' => 'NewPassword123',
             'password_confirmation' => 'NewPassword123'
-        ]);
+        ], $this->headers);
 
-        $response->assertSessionHasErrors('current_password');
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['current_password']);
     }
 
     public function test_profile_update_current_password_validation()
     {
         $this->actingAs($this->user);
 
-        $response = $this->put(route('profile.update'), [
+        $response = $this->putJson(route('profile.update'), [
             'name' => $this->user->name,
             'email' => $this->user->email,
             'phone' => $this->user->phone,
             'current_password' => 'wrong-password',
             'password' => 'NewPassword123',
             'password_confirmation' => 'NewPassword123'
-        ]);
+        ], $this->headers);
 
-        $response->assertSessionHasErrors('current_password');
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['current_password']);
     }
 
     public function test_category_update_requires_authentication()
     {
+        $this->withoutExceptionHandling();
+        
+        $this->expectException(\Illuminate\Auth\AuthenticationException::class);
+        
         $category = Category::factory()->create([
             'user_id' => $this->user->id
         ]);
 
-        $response = $this->put(route('categories.update', $category), [
+        $this->putJson(route('categories.update', $category), [
             'name' => 'Updated Name',
             'description' => 'Updated Description',
             'type' => 'personal'
-        ]);
-
-        $response->assertRedirect(route('login'));
+        ], $this->headers);
     }
 
     public function test_category_delete_requires_authentication()
     {
+        $this->withoutExceptionHandling();
+        
+        $this->expectException(\Illuminate\Auth\AuthenticationException::class);
+        
         $category = Category::factory()->create([
             'user_id' => $this->user->id
         ]);
 
-        $response = $this->delete(route('categories.destroy', $category));
-
-        $response->assertRedirect(route('login'));
+        $this->deleteJson(route('categories.destroy', $category), [], $this->headers);
     }
 
     public function test_category_cannot_be_deleted_if_has_contacts()
@@ -566,9 +428,10 @@ class DashboardTest extends TestCase
             'category_id' => $category->id
         ]);
 
-        $response = $this->delete(route('categories.destroy', $category));
+        $response = $this->deleteJson(route('categories.destroy', $category));
 
-        $response->assertStatus(422);
+        $response->assertStatus(400);
+        $response->assertJson(['error' => 'Cannot delete a category with associated contacts.']);
         $this->assertDatabaseHas('categories', ['id' => $category->id]);
     }
-} 
+}

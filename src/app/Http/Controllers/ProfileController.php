@@ -35,19 +35,33 @@ class ProfileController extends Controller
      */
     public function update(Request $request)
     {
-        DB::beginTransaction();
+        if (!Auth::check()) {
+            return response()->json(['message' => 'Unauthenticated.'], 401);
+        }
+
+        $user = Auth::user();
+        
+        // Do validation first, before starting transaction
         try {
-            $user = Auth::user();
-
-            // Validate the request data
             $validated = $this->validateProfileData($request, $user);
+        } catch (ValidationException $e) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => 'The given data was invalid.',
+                    'errors' => $e->errors()
+                ], 422);
+            }
+            throw $e;
+        }
 
-            // Update basic profile information
+        try {
+            DB::beginTransaction();
+
             $this->updateBasicProfile($user, $validated);
 
             // Handle password update if provided
-            if ($request->filled('new_password')) {
-                $this->updatePassword($user, $validated);
+            if ($request->has('password')) {
+                $this->updatePassword($user, $request);
             }
 
             // Handle profile image
@@ -71,29 +85,32 @@ class ProfileController extends Controller
             
             DB::commit();
 
-            return response()->json([
-                'message' => 'Profile updated successfully',
-                'profile_image' => $user->profile_image ? asset($user->profile_image) : null,
-                'user' => [
-                    'name' => $user->name,
-                    'email' => $user->email,
-                    'phone' => $user->phone
-                ]
-            ]);
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => 'Profile updated successfully',
+                    'profile_image' => $user->profile_image ? asset($user->profile_image) : null,
+                    'user' => [
+                        'name' => $user->name,
+                        'email' => $user->email,
+                        'phone' => $user->phone
+                    ]
+                ], 200);
+            }
 
-        } catch (ValidationException $e) {
-            DB::rollBack();
-            return response()->json([
-                'errors' => $e->errors()
-            ], 422);
+            return redirect()->route('profile.show')
+                ->with('success', 'Profile updated successfully');
+
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('Profile update failed: ' . $e->getMessage());
-            Log::error('Stack trace: ' . $e->getTraceAsString());
             
-            return response()->json([
-                'error' => 'An error occurred while updating your profile. Please try again.'
-            ], 500);
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => 'Error updating profile',
+                    'error' => $e->getMessage()
+                ], 500);
+            }
+
+            return back()->withErrors(['error' => 'Failed to update profile. Please try again.']);
         }
     }
 
@@ -106,8 +123,8 @@ class ProfileController extends Controller
      */
     private function validateProfileData(Request $request, $user)
     {
-        $rules = [
-            'name' => ['required', 'string', 'max:255', 'regex:/^[A-Za-z\s]+$/'],
+        $baseRules = [
+            'name' => ['required', 'string', 'min:2', 'max:255', 'regex:/^[A-Za-z\s]+$/'],
             'email' => [
                 'required',
                 'string',
@@ -115,31 +132,30 @@ class ProfileController extends Controller
                 'max:255',
                 Rule::unique('users')->ignore($user->id)
             ],
-            'phone' => ['required', 'regex:/^(\+63|09)\d{9}$/'],
+            'phone' => [
+                'required',
+                'regex:/^(\+63|09)\d{9}$/',
+                Rule::unique('users')->ignore($user->id)
+            ],
             'profile_image' => ['nullable', 'image', 'mimes:jpeg,png,jpg,gif', 'max:2048'],
             'remove_image' => ['nullable', 'boolean'],
         ];
 
-        // Add password validation rules if password fields are filled
-        if ($request->filled('current_password') || $request->filled('new_password')) {
-            $rules['current_password'] = [
-                'required',
-                function ($attribute, $value, $fail) use ($user) {
-                    if (!Hash::check($value, $user->password)) {
-                        $fail('The current password is incorrect.');
-                    }
+        if ($request->has('current_password') || $request->has('password')) {
+            $rules['current_password'] = ['required', function ($attribute, $value, $fail) use ($user) {
+                if (!Hash::check($value, $user->password)) {
+                    $fail('The current password is incorrect.');
                 }
-            ];
-            $rules['new_password'] = [
+            }];
+            $rules['password'] = [
                 'required',
-                'string',
                 'min:8',
                 'confirmed',
-                'regex:/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/'
+                'regex:/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/'
             ];
         }
 
-        $messages = [
+        return $request->validate($rules, [
             'name.required' => 'Please enter your full name.',
             'name.max' => 'Your name cannot exceed 255 characters.',
             'name.regex' => 'Your name can only contain letters and spaces.',
@@ -148,16 +164,13 @@ class ProfileController extends Controller
             'email.unique' => 'This email is already registered. Please use a different email.',
             'phone.required' => 'Please enter your phone number.',
             'phone.regex' => 'Please enter a valid Philippine mobile number starting with 09 or +63.',
-            'new_password.required' => 'Please enter a new password.',
-            'new_password.min' => 'Your password must be at least 8 characters long.',
-            'new_password.confirmed' => 'The password confirmation does not match.',
-            'new_password.regex' => 'Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character.',
-            'profile_image.image' => 'The file must be an image.',
-            'profile_image.mimes' => 'The image must be a file of type: jpeg, png, jpg, gif.',
-            'profile_image.max' => 'The image may not be greater than 2MB.',
-        ];
-
-        return $request->validate($rules, $messages);
+            'phone.unique' => 'This phone number is already registered.',
+            'current_password.required' => 'The current password is required.',
+            'password.required' => 'The new password is required.',
+            'password.min' => 'The new password must be at least 8 characters.',
+            'password.confirmed' => 'The new password confirmation does not match.',
+            'password.regex' => 'Password must contain at least one uppercase letter, one lowercase letter, and one number.',
+        ]);
     }
 
     /**
@@ -181,9 +194,9 @@ class ProfileController extends Controller
      * @param  array  $validated
      * @return void
      */
-    private function updatePassword($user, $validated)
+    private function updatePassword($user, $request)
     {
-        $user->password = Hash::make($validated['new_password']);
+        $user->password = Hash::make($request->password);
     }
 
     /**
@@ -251,4 +264,4 @@ class ProfileController extends Controller
             throw new \Exception('Failed to remove profile image. Please try again.');
         }
     }
-} 
+}
