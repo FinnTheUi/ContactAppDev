@@ -31,7 +31,7 @@ class AuthController extends Controller
     public function register(Request $request)
     {
         try {
-            // Validate all fields at once
+            // Validate all fields
             $validator = validator($request->all(), [
                 'name' => ['required', 'string', 'min:2', 'max:255'],
                 'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
@@ -51,12 +51,14 @@ class AuthController extends Controller
                 'password.confirmed' => 'The password confirmation does not match.',
             ]);
 
-            // Custom email validation
-            if ($request->filled('email') && !$this->validateEmail($request->input('email'))) {
-                $validator->errors()->add('email', 'Please enter a valid email address.');
+            // Check for validation errors before doing custom email validation
+            if ($validator->fails()) {
+                throw new ValidationException($validator);
             }
 
-            if ($validator->fails()) {
+            // Then do custom email validation
+            if ($request->filled('email') && !$this->validateEmail($request->input('email'))) {
+                $validator->errors()->add('email', 'Please enter a valid email address.');
                 throw new ValidationException($validator);
             }
 
@@ -155,7 +157,7 @@ class AuthController extends Controller
     public function login(Request $request)
     {
         try {
-            // Validate all fields at once
+            // Validate all fields first
             $validator = validator($request->all(), [
                 'email' => 'required|email',
                 'password' => 'required',
@@ -165,12 +167,14 @@ class AuthController extends Controller
                 'password.required' => 'Please enter your password.',
             ]);
 
-            // Custom email validation
-            if ($request->filled('email') && !$this->validateEmail($request->input('email'))) {
-                $validator->errors()->add('email', 'Please enter a valid email address.');
+            // Check for validation errors before doing custom email validation
+            if ($validator->fails()) {
+                throw new ValidationException($validator);
             }
 
-            if ($validator->fails()) {
+            // Then do custom email validation
+            if ($request->filled('email') && !$this->validateEmail($request->input('email'))) {
+                $validator->errors()->add('email', 'Please enter a valid email address.');
                 throw new ValidationException($validator);
             }
 
